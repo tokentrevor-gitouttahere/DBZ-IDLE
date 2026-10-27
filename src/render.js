@@ -19,8 +19,10 @@ const Render = (() => {
   // the two atlases are data: URLs; boot waits for them
   function load() {
     const img = (src) => new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
-    return Promise.all([img(MACHINE_SPRITES.atlas), img(LEVEL_TILES.atlas)]).then(([a, b]) => { atlasM = a; atlasT = b; });
+    const arts = typeof FORM_ART !== 'undefined' ? Object.keys(FORM_ART) : [];
+    return Promise.all([img(MACHINE_SPRITES.atlas), img(LEVEL_TILES.atlas)].concat(arts.map((k) => img(FORM_ART[k].src).then((i) => { artImg[k] = i; })))).then(([a, b]) => { atlasM = a; atlasT = b; });
   }
+  const artImg = {};
   function init(canvas) {
     cv = canvas;
     ctx = cv.getContext('2d');
@@ -377,17 +379,25 @@ const Render = (() => {
     opts = opts || {};
     const key = [id, w, h, opts.crop || 1, opts.face || 1, opts.pose || '', opts.kit || '', opts.hair || ''].join(':');
     if (cache.rig[key]) return cache.rig[key];
-    const rig = (typeof FS_RIGS !== 'undefined' ? FS_RIGS.RIGS : []).find((r) => r.id === id);
     const out = mk(w, h);
-    if (!rig) { cache.rig[key] = out; return out; }
     const S = 6, crop = opts.crop || 1;
     const big = mk(w * S, h * S), gb = big.getContext('2d');
     const figH = (h * S * 0.94) / crop;
-    const unit = figH / (rig.top * 0.74);
-    const pose = (opts.pose && FS_RIGS.POSES && FS_RIGS.POSES[opts.pose]) || rig.rest;
-    const J = FS_RIGS.rigJoints(rig, (w * S) / 2, figH + h * S * 0.03, unit, opts.face || 1, pose, 0, null);
-    const kit = opts.kit && FS_RIGS.HAIRKITS ? FS_RIGS.HAIRKITS[opts.kit] || null : null;
-    FS_RIGS.drawRig(gb, rig, J, 1, kit ? null : opts.hair || null, kit);
+    if (id.startsWith('art:')) {
+      // a picture instead of a rig: the whole figure is figH tall from the top, body centred (crop shows the top part)
+      const k = id.slice(4), im = artImg[k];
+      if (!im) return out; // not loaded yet: try again next time
+      const A = FORM_ART[k], s = (figH * (A.k || 1)) / im.height;
+      gb.drawImage(im, (w * S) / 2 - A.cx * im.width * s, h * S * 0.03, im.width * s, im.height * s);
+    } else {
+      const rig = (typeof FS_RIGS !== 'undefined' ? FS_RIGS.RIGS : []).find((r) => r.id === id);
+      if (!rig) { cache.rig[key] = out; return out; }
+      const unit = figH / (rig.top * 0.74);
+      const pose = (opts.pose && FS_RIGS.POSES && FS_RIGS.POSES[opts.pose]) || rig.rest;
+      const J = FS_RIGS.rigJoints(rig, (w * S) / 2, figH + h * S * 0.03, unit, opts.face || 1, pose, 0, null);
+      const kit = opts.kit && FS_RIGS.HAIRKITS ? FS_RIGS.HAIRKITS[opts.kit] || null : null;
+      FS_RIGS.drawRig(gb, rig, J, 1, kit ? null : opts.hair || null, kit);
+    }
     const sm = mk(w, h), gs = sm.getContext('2d');
     gs.imageSmoothingEnabled = true;
     gs.imageSmoothingQuality = 'high';
@@ -494,8 +504,10 @@ const Render = (() => {
   // damage numbers: white for the disc, gold and big for crits, red for super crits, companions in their ki colour
   function dmgNum(e) {
     if (!(e.d > 0)) return;
+    if (e.by === 'beam' && !e.crit && Math.random() < 0.6) return; // the beam hits 8 times a second: show some
+    if (e.by === 'beam' && !reduce && Math.random() < 0.5) fx.push({ k: 'spark', x: e.x + (Math.random() - 0.5) * 6, y: e.y, vx: (Math.random() - 0.5) * 70, vy: -Math.random() * 60, life: 0.2, age: 0, col: Math.random() < 0.5 ? '#ffffff' : '#bfe8ff' });
     if (texts.length > 70) texts.splice(0, texts.length - 70);
-    const col = e.crit ? CRIT_COL[Math.min(e.crit, CRIT_COL.length - 1)] : e.by === 'disc' ? '#ffffff' : e.by === 'helper' ? '#ffe9a0' : e.by === 'tech' ? '#9fe4ff' : '#ffffff';
+    const col = e.crit ? CRIT_COL[Math.min(e.crit, CRIT_COL.length - 1)] : e.by === 'disc' ? '#ffffff' : e.by === 'helper' ? '#ffe9a0' : e.by === 'tech' ? '#9fe4ff' : e.by === 'beam' ? '#bfe8ff' : e.by === 'burn' ? '#ff8a3a' : '#ffffff';
     const s = fmt(e.d) + '!'.repeat(Math.max(0, (e.crit || 0) - 1));
     const x = e.x + (Math.random() - 0.5) * 10;
     texts.push({ x, y: e.y - 4, s, col, age: 0, life: e.crit ? 0.8 : 0.6, big: !!e.crit, vx: (Math.random() - 0.5) * 14, dmg: 1 });
@@ -565,10 +577,13 @@ const Render = (() => {
       drawShot(s);
     }
 
-    if (input.down) {
+    if (W.beamOn) drawBeams(G.beamRays(S, W, C, input), C.beamWidth, G.beamLookOf(S), S.formOn > 0 ? G.formLook(S, S.formOn) : null);
+    else if (input.down) {
       if (S.formOn > 0) drawAura(input.x, input.y, C.radius, G.formLook(S, S.formOn));
       drawDisc(input.x, input.y, C.radius);
     }
+    // burning machines smoke and flicker orange
+    if (!reduce) for (const n of W.nodes) if (n.burn && Math.random() < 0.25) fx.push({ k: 'spark', x: n.x + (Math.random() - 0.5) * n.r, y: n.y - n.r * (0.4 + Math.random() * 0.8), vx: (Math.random() - 0.5) * 10, vy: -20 - Math.random() * 20, life: 0.35, age: 0, col: ['#ff6a2a', '#ffb030', '#ffd34d', '#5d5650'][Math.floor(Math.random() * 4)] });
 
     // particles
     for (const p of fx) {
@@ -718,6 +733,47 @@ const Render = (() => {
       default:
         ctx.fillStyle = s.col; ctx.globalAlpha = 0.35; ctx.fillRect(X - 2, Y - 2, 5, 5);
         ctx.globalAlpha = 1; ctx.fillRect(X - 1, Y - 1, 3, 3); px(ctx, X, Y, '#ffffff');
+    }
+  }
+  // the Ki Beam: from the fighter through the finger to the edge of the field. Drawn in pixel squares stepped along
+  // the ray, outer colour first, then the middle and the white-hot core; it ripples, and a form adds its aura flicker
+  function drawBeams(rays, width, L, form) {
+    const w = Math.max(2, width * L.w);
+    const pts = rays.map((r) => {
+      const p = [];
+      for (let i = 0; i < 900; i++) {
+        const x = r.x + r.dx * i, y = r.y + r.dy * i;
+        if (x < -w || x > GW + w || y < -w || y > GH + w) break;
+        p.push([x, y, i]);
+      }
+      return { r, p };
+    });
+    const layer = (col, k, wob) => {
+      ctx.fillStyle = col;
+      for (const { p } of pts) for (const [x, y, i] of p) {
+        const ramp = Math.min(1, 0.35 + i / 14); // thin where it leaves the hands
+        const s = Math.max(1, Math.round(w * k * ramp + (wob ? Math.sin(t * 40 - i * 0.35) * wob : 0)));
+        ctx.fillRect(Math.round(x - s / 2), Math.round(y - s / 2), s, s);
+      }
+    };
+    ctx.globalAlpha = 0.45; layer(L.col[0], 1.5, 1.2);
+    ctx.globalAlpha = 1; layer(L.col[0], 1, 1);
+    layer(L.col[1], 0.62, 0.8);
+    layer(L.col[2], 0.28, 0);
+    for (const { r, p } of pts) {
+      // Special Beam Cannon: an orange spiral wrapped round a thin core
+      if (L.spiral) for (const [x, y, i] of p) { const sp = Math.sin(i * 0.45 - t * 30) * (w * 1.4 + 1); px(ctx, x - r.dy * sp, y + r.dx * sp, i % 2 ? L.col[0] : '#ffb030'); }
+      // a form's aura licks along the edges
+      if (form) for (const [x, y, i] of p) if ((i + Math.floor(t * 30)) % 5 === 0 && Math.random() < 0.6) { const sd = (Math.random() < 0.5 ? -1 : 1) * (w * 0.75 + 1 + Math.random() * 2); ctx.globalAlpha = 0.7; px(ctx, x - r.dy * sd, y + r.dx * sd, form.aura); }
+      ctx.globalAlpha = 1;
+    }
+    // the charge ball in the fighter's hands
+    const o = rays[0];
+    const pr = Math.round(w * 0.7 + 1 + Math.sin(t * 25));
+    disc(o.x, o.y, pr + 1, L.col[0]); disc(o.x, o.y, pr, L.col[1]); disc(o.x, o.y, Math.max(1, pr - 2), L.col[2]);
+    if (form && form.spark && Math.floor(t * 12) % 3 === 0) {
+      const p = pts[0].p, at = p[Math.floor(Math.random() * p.length)];
+      if (at) { let x = at[0], y = at[1]; for (let k = 0; k < 6; k++) { x += (Math.random() - 0.5) * 6; y += (Math.random() - 0.5) * 6; px(ctx, x, y, k % 2 ? '#ffffff' : '#bfe8ff'); } }
     }
   }
   // a form's aura around the disc: flickering flames in the form's colour, lightning for SSJ2 / Majin / Blue Evolution

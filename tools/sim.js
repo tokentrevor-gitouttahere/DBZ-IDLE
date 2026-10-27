@@ -13,6 +13,7 @@ function run() {
   const S = G.newState(now);
   const W = G.newWorld();
   W.bounds = { x0: 30, y0: 60, x1: 150, y1: 260 };
+  W.beamFrom = [90, 40];
   const input = { down: false, x: 60, y: 100 };
   const log = [];
   const mark = (msg) => log.push(fmtT(now / 1000) + '  ' + msg);
@@ -39,7 +40,7 @@ function run() {
     now += dt * 1000;
   }
   const C = G.calc(S);
-  mark('END: PL ' + S.level + '/' + G.levelCap(S) + ', floor ' + S.floor + ' (best ' + S.maxFloor + '), Monoliths ' + S.mono.tier + ', Zenkai x' + S.zenkai.count + ', Ki Power ' + G.fmt(C.basePower) + ' (lv ' + (S.up.power || 0) + '), caps ' + S.caps + ', chests ' + S.stats.chests + '/' + S.stats.supers);
+  mark('END: PL ' + S.level + '/' + G.levelCap(S) + ', floor ' + S.floor + ' (best ' + S.maxFloor + '), Monoliths ' + S.mono.tier + ', Zenkai x' + S.zenkai.count + ', Ki Power ' + G.fmt(C.basePower) + ' (lv ' + (S.up.power || 0) + '), caps ' + S.caps + ', chests ' + S.stats.chests + '/' + S.stats.supers + ', beam ups ' + JSON.stringify(S.bup) + ', cards ' + G.cardCount(S)[0]);
   if (process.env.SIM_DUMP) console.log(JSON.stringify({zeni: S.zeni, up: S.up, parts: S.parts, alloy: S.alloy, floor: S.floor}));
   if (process.env.SIM_DUMP) console.log(JSON.stringify({zeni: S.zeni, up: S.up, parts: S.parts, alloy: S.alloy, floor: S.floor}));
   return log;
@@ -65,6 +66,11 @@ function needs(S) {
     if (l >= G.UPS[k].max) continue;
     for (const [id, n] of G.upCost(k, l).alloy) need[id] = Math.max(need[id] || 0, n);
   }
+  if (G.has(S, 'beam')) for (const k of G.BEAM_KEYS) {
+    const l = S.bup[k] || 0;
+    if (l >= G.BEAM_UPS[k].max) continue;
+    for (const [id, n] of G.beamCost(k, l).alloy) need[id] = Math.max(need[id] || 0, n);
+  }
   for (const w of G.WORKSHOP) {
     if (!G.wsOpen(S, w) || (S.ws[w.id] || 0) >= w.max) continue;
     for (const [id, n] of G.wsCost(w, S.ws[w.id] || 0).alloy) need[id] = Math.max(need[id] || 0, n);
@@ -83,8 +89,14 @@ function decide(S, W, now) {
   if (top) {
     if (S.formSel !== top) G.selectForm(S, W, top);
     const soon = W.mode === 'field' && S.mono.readyAt - now < 40000;
-    if (!S.formOn && !soon && S.ki >= C.kiMax * 0.98) G.transform(S, W);
+    // a full Ki bar goes to the form or (from Monolith 9) the Ki Beam, taking turns
+    if (!S.formOn && S.weapon !== 'beam' && !soon && S.ki >= C.kiMax * 0.98 && W.mode === 'field') {
+      W.botBeam = !W.botBeam;
+      if (W.botBeam && G.has(S, 'beam') && W.nodes.length >= 3) G.setWeapon(S, 'beam');
+      else G.transform(S, W);
+    }
   }
+  if (S.weapon === 'beam' && (W.beamOut || S.ki < 5 || W.mode === 'mono')) G.setWeapon(S, 'disc');
   G.openChests(S, 'item', 1000);
   G.openChests(S, 'super', 1000);
   // refine what upgrades ask for, sell the rest
@@ -105,6 +117,12 @@ function decide(S, W, now) {
       if (l >= G.UPS[k].max) continue;
       const c = G.upCost(k, l);
       if (G.canAfford(S, c)) consider(c.zeni, () => G.buyUp(S, k), k === 'power' ? 0.5 : 1);
+    }
+    if (G.has(S, 'beam')) for (const k of G.BEAM_KEYS) {
+      const l = S.bup[k] || 0;
+      if (l >= G.BEAM_UPS[k].max) continue;
+      const c = G.beamCost(k, l, S);
+      if (G.canAfford(S, c)) consider(c.zeni, () => G.buyBeam(S, k), 1.3);
     }
     for (const w of G.WORKSHOP) {
       if (!G.wsOpen(S, w) || (S.ws[w.id] || 0) >= w.max) continue;

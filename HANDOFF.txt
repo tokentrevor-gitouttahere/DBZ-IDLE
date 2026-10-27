@@ -81,13 +81,31 @@ Browser-pane gotchas we hit (save yourself time):
 ==================================================================================================================
   M1 Z-Fighters | M2 Workshop, Form 1 (SSJ) + Ki | M3 Techniques, Skill Tree | M4 Item chests | M5 SUPER chests,
   Form 2 (SSJ2 / Majin) | M6 Workshop II | M7 Capsule Store | M8 Buu Wishes, CONTRACTS, Form 3 (SSJ3 / God) |
-  M10 Namek (floors 51-100), CARDS | M11 Form 4 (God / Blue) | M12 more Contract upgrades | M14 Form 5 (Blue /
+  M9 KI BEAM | M10 Namek (floors 51-100), CARDS | M11 Form 4 (God / Blue) | M12 more Contract upgrades | M14 Form 5 (Blue /
   Blue Evolution), more Contract upgrades | M16 more Contract upgrades | M18 Form 6 (MUI / Ultra Ego)
   Z-Fighters by Monolith: Yamcha + Krillin M1, Gohan M2, Piccolo M4, Vegeta M7, Nappa M10.
 
 ==================================================================================================================
 5. SYSTEMS AND THE DECISIONS BEHIND THEM (newest first)
 ==================================================================================================================
+v0.6 KI BEAM (Monolith 9; built, NOT deployed yet)       core.js BEAM_UPS / beamRays / beamHit / setBurn; render.js drawBeams
+  Owner decisions: shares the forms' Ki pool; a HOLD toggle (DISC/BEAM) under FORM (key B; right click fires the
+    beam whatever the toggle says); the beam starts at the HUD fighter, goes THROUGH the finger and on to the edge
+    of the field (drag to sweep); unlock M9 (was a free slot); upgrades in a new KI BEAM tab of the DISC sheet, Zeni
+    + alloy, reset by Zenkai (S.bup); "length" became Ki Efficiency; hits the Monolith and forms multiply it;
+    beam crits use the disc's crit tiers; looks: Kamehameha (Goku) / Galick Gun (Vegeta) free and follow the fighter,
+    Masenko (150) and Special Beam Cannon (250) in the Capsule Store, Death Beam + Final Flash shown as LATER
+    (owner: "mechanics yet to be described"); extras: Ki Beam card (+5% beam damage), Ki Drink item (rare, refills
+    Ki), Skill Tree BEAM branch with Scorched Earth (row 3 = M9: burns stack to 3).
+  Numbers (TUNE): 0.5 x Ki Power per hit (incl. form/buffs), 8 hits/s, 7 Ki/s, needs 15 Ki to start, 10 px wide
+    (+1.5/Width level; a machine is hit when its body is within half the width + 0.7r of the ray), split beams fan
+    0.12 rad apart and hit for 60% each, Burn = 5%/level of beam dps for 3s after the last hit, ticking every 0.5s.
+    Ki refills only in base form with the beam off. Out of Ki mid-hold: the disc takes over until you let go.
+  Sim bot: full Ki bars alternate between the beam and the form; it buys beam upgrades like disc ones.
+    24h x3: Monoliths 23/23/23 (baseline 24/24/24), floor 100 at 8h49-10h14 (baseline 9h14-10h06), M9 at 4h02-5h42.
+    The bot spends less time transformed and spends Zeni/alloy on the beam, so it's ~1 Monolith behind by 24h.
+  Saves: S.weapon, S.beamLook (kept), S.bup (reset); migrate() fills them. Cards now 151 (x_beam, i_kidrink).
+
 v0.5 CARDS (Monolith 10, kept through Zenkai)                             core.js CARDS / cardRoll / transformCard
   What: 149 cards = 50 machine (+parts from it), 50 alloy (+double-refine chance), 6 Z-Fighter (+damage),
     6 form (-Ki drain in that form), 5 Technique (-cooldown), 15 item (+buff time; Senzu: chance to keep the bean),
@@ -150,7 +168,11 @@ v0.4 CHOOSE FIGHTER + FORMS + KI                                   core.js FIGHT
     -ssj / -ssj2 (Majin) / vegeta-namek with red, blue, deep blue, purple hair (the sim's Super-saga Vegeta art).
   Lightning (owner asked): SSJ2 Goku and Majin Vegeta (and Blue Evolution, also a lightning form in the sim) get
     flickering bolts on the HUD portrait (ui.js drawBolts) and on the disc aura (render.js drawAura).
-  SSJ3 head fix: the sim's goku-buu-ssj3-hq head faces backwards (also wrong in the sim itself, which we did not
+  SSJ3 ART (v0.6, owner): the sim's SSJ3 rig still looked bad small, so Goku's SSJ3 is now a PICTURE by
+    @stickfigurecreator2 (credited in Credits + README): cut out of its background, mirrored, src/gen_looks.js
+    FORM_ART (rig id 'art:ssj3'; render.js rigSprite draws it with the same pixel snap + ink outline; cx/k frame it).
+    Source picture kept out of the repo; the cutout is embedded as a data URL.
+  SSJ3 head fix (old, now unused for Goku): the sim's goku-buu-ssj3-hq head faces backwards (also wrong in the sim itself, which we did not
     touch). tools/extract_rigs.py HEAD_FLIP mirrors that rig's head shapes, so re-extraction keeps the fix.
   With Vegeta chosen, Goku takes Vegeta's Z-Fighter slot (helperView): same key and upgrades, trait renamed
     "Desperate Blasts", blue blasts, shouts Kamehameha!/Dragon Fist!. Switching fighters loses nothing.
@@ -215,12 +237,5 @@ v0.3 and earlier (see IDLE_DESIGN.md): machines + floors + regions, Techniques, 
     floors while you're away (current) or stay on your floor?
   - Friends' playtest -> retune TUNE (Monolith growth, chests, Z prices, card odds).
   - More planets: ROSTER rows (more paints/marks) + REGIONS recipes in build_tiles.py.
-  - KI BEAM (Shulk's idea, not built). Spec: right click (instead of the disc) fires a long vertical beam about a
-    small machine wide that hits everything it touches; unlocks with a Monolith clear; looks to pick from
-    (Kamehameha, Galick Gun, Death Beam, Masenko, Special Beam Cannon, Final Flash: same function); own upgrades
-    (damage, length, width, split into 2-5 beams, burn = damage over time); powered by Ki; works on the Monolith;
-    disc and beam can't fire together. The Ki pool now EXISTS (forms use it), so decide whether the beam shares it.
-    Open: phones have no right click (proposed: a BEAM/DISC toggle by Techniques); aim (up from the finger, drag to
-    sweep?); unlock slot. Ideas: charge-up x1.5, split beams share damage, burn stacks + "Scorched Earth" node,
-    beam crits use the crit tiers, beam clash on the Monolith, Ki Drink item, beam looks as cosmetics,
-    Goku = Kamehameha / Vegeta = Galick Gun by default (from the Choose Fighter idea), knobs in TUNE.
+  - KI BEAM: built in v0.6 (section 5). Still open: Death Beam / Final Flash look unlocks (owner will describe
+    the mechanics), beam clash on the Monolith, charge-up.

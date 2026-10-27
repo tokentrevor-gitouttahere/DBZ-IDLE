@@ -283,11 +283,11 @@ textarea { width: 100%; box-sizing: border-box; height: 70px; resize: vertical; 
 .chestc canvas { width: 48px; height: 48px; image-rendering: pixelated; }
 .loot { display: flex; flex-wrap: wrap; gap: 4px; }
 .loot span { display: inline-flex; align-items: center; gap: 4px; font-size: 9px; padding: 3px 5px; background: var(--panel-2); border: 1px solid var(--ink); }
-.tree { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 10px; padding: 12px 6px; background: radial-gradient(circle at 20% 10%, #2a2340 0 2px, transparent 3px) 0 0/37px 41px, radial-gradient(circle at 70% 60%, #3a3050 0 1px, transparent 2px) 0 0/23px 29px, #120f1a; border: 2px solid var(--ink); }
+.tree { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 6px; padding: 12px 6px; background: radial-gradient(circle at 20% 10%, #2a2340 0 2px, transparent 3px) 0 0/37px 41px, radial-gradient(circle at 70% 60%, #3a3050 0 1px, transparent 2px) 0 0/23px 29px, #120f1a; border: 2px solid var(--ink); }
 .tcol-h { text-align: center; font-size: 8px; color: var(--gold); letter-spacing: 0.08em; }
 .node { position: relative; min-height: 58px; padding: 5px 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-align: center; font-size: 7px; line-height: 1.25; background: #2c2418; border: 2px solid var(--ink); box-shadow: inset 0 0 0 2px #8a6a2a, inset 0 0 0 3px #3a2c14; color: var(--text); }
 .node::before { content: ''; position: absolute; left: 50%; top: -16px; width: 2px; height: 14px; background: #d8d4cc; }
-.node.r0::before { display: none; }
+.node.r0::before, .node.root::before { display: none; }
 .node.locked { opacity: 0.35; }
 .node.maxed { box-shadow: inset 0 0 0 2px var(--good-hi), inset 0 0 0 3px #1d4a1b; }
 .node.sel { outline: 2px solid var(--gold); outline-offset: 1px; }
@@ -302,3 +302,11 @@ textarea { width: 100%; box-sizing: border-box; height: 70px; resize: vertical; 
 .bubble { position: absolute; z-index: 6; max-width: 150px; padding: 4px 6px 5px; font-size: 9px; line-height: 1.2; color: #141416; background: #f6f2e8; border: 2px solid #141416; box-shadow: 2px 2px 0 rgba(0,0,0,0.4); pointer-events: none; animation: pop 1.7s steps(5) forwards; }
 .bubble::after { content: ''; position: absolute; left: 16px; bottom: -6px; width: 6px; height: 6px; background: #f6f2e8; border-right: 2px solid #141416; border-bottom: 2px solid #141416; transform: rotate(45deg); }
 @keyframes pop { 0% { transform: scale(0.6); opacity: 0; } 12% { transform: scale(1.05); opacity: 1; } 20%, 85% { transform: none; opacity: 1; } 100% { opacity: 0; } }
+/* HOLD toggle under FORM: what holding the field fires (disc or Ki Beam) */
+.tbtn.wbtn { height: 26px; font-size: 8px; }
+.tbtn.wbtn i { width: 10px; height: 10px; border-radius: 50%; background: #ffd34d; }
+.tbtn.wbtn.beam { background: #1d3550; box-shadow: inset 0 0 0 2px var(--beam, #7fd4ff); color: var(--text); }
+.tbtn.wbtn.beam i { border-radius: 0; width: 4px; height: 12px; background: var(--beam, #7fd4ff); }
+.tbtn.wbtn.firing { animation: pulse 0.5s steps(2) infinite; }
+.blook i { display: inline-block; width: 8px; height: 8px; margin-right: 5px; vertical-align: -1px; }
+.blook[aria-disabled="true"] { opacity: 0.55; }

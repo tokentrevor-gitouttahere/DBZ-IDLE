@@ -6,7 +6,7 @@ import base64, os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 rd = lambda *p: open(os.path.join(ROOT, *p), encoding='utf-8').read()
 b64 = lambda *p: base64.b64encode(open(os.path.join(ROOT, *p), 'rb').read()).decode('ascii')
-js = '\n'.join(rd('src', f) for f in ('gen_rigs.js', 'gen_sprites.js', 'gen_tiles.js', 'core.js', 'render.js', 'ui.js'))
+js = '\n'.join(rd('src', f) for f in ('gen_rigs.js', 'gen_looks.js', 'gen_sprites.js', 'gen_tiles.js', 'core.js', 'render.js', 'ui.js'))
 if '</script' in js:
     raise SystemExit('build: a script contains </script')
 page = (rd('src', 'shell.html').replace('{{FONT400}}', b64('assets', 'silkscreen-400.woff2'))

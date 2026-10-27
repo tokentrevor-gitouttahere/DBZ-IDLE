@@ -24,6 +24,11 @@ const IdleCore = (() => {
     techBase: 6, // a Technique hits for Ki Power x this x the Technique's own multiplier
     critOver: 2, // above 100% crit chance, this much chance buys 1% of the next crit tier
     kiMax: 100, kiRegen: 5, kiMinStart: 25, // Ki: pool, refill per s in base form, Ki needed to transform
+    // Ki Beam (Monolith 9): fires from your fighter through your finger to the edge of the field, hitting everything
+    // on the way. beamPower x the disc's Ki Power per hit, beamRate hits a second, drains beamDrain Ki a second
+    // (the same Ki as forms). beamWidth in game px; split beams fan out beamSpread radians apart.
+    beamPower: 0.5, beamRate: 8, beamDrain: 7, beamMinStart: 15, beamWidth: 10, beamSpread: 0.12,
+    burnTime: 3, burnEvery: 0.5, // Burn: machines the beam touched keep burning this long after, hurting every burnEvery s
     // Z points (Z-Fighter currency, bought with Zeni, kept through Zenkai): the first Zeni buys zpFirst points, then
     // 1 Zeni each up to zpFlat bought, then point n costs (n / zpFlat)^zpPow Zeni (the millionth: ~500K Zeni)
     zpFirst: 10, zpFlat: 750, zpPow: 1.824,
@@ -123,6 +128,7 @@ const IdleCore = (() => {
     { n: 7, id: 'store', name: 'Capsule Store', desc: 'Spend Rainbow Capsules on Skill Points, chests and permanent perks.' },
     { n: 8, id: 'contracts', name: 'Contracts', desc: 'Bulma orders Capsule Alloy. Each order pays Contract Points for upgrades this run (Zenkai resets them). Contract boosters join the Zenkai upgrades.' },
     { n: 8, id: 'wishes', name: 'Buu Wishes', desc: 'Challenges with permanent rewards. Each one counts within a single run.' },
+    { n: 9, id: 'beam', name: 'Ki Beam', desc: 'Flip HOLD from DISC to BEAM (or right click): a beam fires from your fighter through your finger to the edge of the field and hits everything on the way, the Monolith too. It drains Ki, like forms. Upgrades in the DISC tab, KI BEAM.' },
     { n: 10, id: 'cards', name: 'Cards', desc: 'A card for every machine, alloy, Z-Fighter, form, Technique, item and region: each gives +5% to its own thing. Transform a card with Rainbow Capsules to triple it.' },
     { n: 10, id: 'namek', name: 'Planet Namek', desc: "Floors 51-100: five new regions and the Frieza Force's machines." }
   ];
@@ -135,7 +141,8 @@ const IdleCore = (() => {
       { name: 'Base', short: 'BASE', rig: 'goku-saiyan' },
       { name: 'Super Saiyan', short: 'SSJ', rig: 'goku-ssj', aura: '#f2b705' },
       { name: 'Super Saiyan 2', short: 'SSJ2', rig: 'goku-saiyan', hair: '#ffd23f', aura: '#f7c948', spark: true },
-      { name: 'Super Saiyan 3', short: 'SSJ3', rig: 'goku-buu-ssj3-hq', aura: '#ffd23f' },
+      // art: a picture (gen_looks.js FORM_ART) stands in for the sim's SSJ3 rig, which reads badly this small
+      { name: 'Super Saiyan 3', short: 'SSJ3', rig: 'art:ssj3', aura: '#ffd23f' },
       { name: 'Super Saiyan God', short: 'GOD', rig: 'goku-saiyan', hair: '#e8343f', aura: '#ff4b5c' },
       { name: 'Super Saiyan Blue', short: 'BLUE', rig: 'goku-saiyan', hair: '#38c8f5', aura: '#3fd0ff' },
       { name: 'Mastered Ultra Instinct', short: 'MUI', rig: 'goku-saiyan', hair: '#dfe6f2', aura: '#eef3ff' }
@@ -185,6 +192,26 @@ const IdleCore = (() => {
     refine: { name: "Bulma's Tuning", desc: 'Fewer parts per alloy', max: 4, base: 400, g: 3.2, from: 0, per: 5 }
   };
   const UP_KEYS = Object.keys(UPS);
+  // Ki Beam upgrades (DISC sheet, KI BEAM tab): same pricing as the disc, reset by Zenkai (S.bup)
+  const BEAM_UPS = {
+    bpow: { name: 'Beam Power', desc: 'Damage of each beam hit', max: 40, base: 400, g: 1.32, from: 2, per: 2 },
+    bwide: { name: 'Beam Width', desc: 'A wider beam', max: 12, base: 900, g: 1.7, from: 1, per: 2 },
+    beff: { name: 'Ki Efficiency', desc: 'Ki drained per second while beaming', max: 12, base: 700, g: 1.6, from: 1, per: 2 },
+    bsplit: { name: 'Split Beam', desc: 'Beams fired at once (each hits for 60%)', max: 4, base: 6000, g: 6, from: 1, per: 6 },
+    bburn: { name: 'Burn', desc: 'Machines it hits burn for a share of its damage a second, for 3s', max: 20, base: 1500, g: 1.55, from: 1, per: 2 }
+  };
+  const BEAM_KEYS = Object.keys(BEAM_UPS);
+  // Beam looks: all work the same. Kamehameha (Goku) and Galick Gun (Vegeta) are free and follow your fighter; store:
+  // a Capsule Store item unlocks it; later: unlocked by something not built yet. col: [outer, middle, core]
+  const BEAM_LOOKS = [
+    { id: 'kamehameha', name: 'Kamehameha', col: ['#2f7fe8', '#7fd4ff', '#ffffff'], w: 1 },
+    { id: 'galick', name: 'Galick Gun', col: ['#6a2ab0', '#c48bff', '#f6eaff'], w: 1 },
+    { id: 'masenko', name: 'Masenko', col: ['#e8a020', '#ffe36a', '#fffbe0'], w: 1, store: 'lk_masenko' },
+    { id: 'sbc', name: 'Special Beam Cannon', col: ['#e08a2a', '#fff6b0', '#ffffff'], w: 0.45, spiral: true, store: 'lk_sbc' },
+    { id: 'death', name: 'Death Beam', col: ['#b0207a', '#ff6ad0', '#ffffff'], w: 0.4, later: true },
+    { id: 'flash', name: 'Final Flash', col: ['#e8c020', '#fff08a', '#ffffff'], w: 1.3, later: true }
+  ];
+  const BEAM_LOOK = Object.fromEntries(BEAM_LOOKS.map((l) => [l.id, l]));
 
   // ------------------------------------------------------------------ permanent bonus sources
   // Every permanent upgrade is a list of effects [key, amount per level]. Keys ending in X multiply (amount^level);
@@ -280,12 +307,15 @@ const IdleCore = (() => {
     { id: 'house', name: 'Capsule House', desc: '+25% offline gains', fx: [['offlinePct', 0.25]], max: 4, cost: 80 },
     { id: 'member', name: 'Capsule Corp Card', desc: '+20% Zeni from selling', fx: [['valuePct', 0.2]], max: 5, cost: 75 },
     { id: 'plane', name: "Bulma's New Plane", desc: 'Loot Bulma visits 20% more often', fx: [['bulmaPct', 0.2]], max: 3, cost: 60 },
-    { id: 'pouch', name: 'Bean Pouch', desc: '+1 item from every Item chest', fx: [['itemExtra', 1]], max: 2, cost: 150 }
+    { id: 'pouch', name: 'Bean Pouch', desc: '+1 item from every Item chest', fx: [['itemExtra', 1]], max: 2, cost: 150 },
+    // Ki Beam looks (looks only; pick one in DISC, KI BEAM)
+    { id: 'lk_masenko', name: 'Beam Look: Masenko', desc: 'Fire your Ki Beam as a Masenko. Looks only.', max: 1, cost: 150, need: 'beam' },
+    { id: 'lk_sbc', name: 'Beam Look: Special Beam Cannon', desc: 'Fire your Ki Beam as a Special Beam Cannon. Looks only.', max: 1, cost: 250, need: 'beam' }
   ];
   const STOREBY = Object.fromEntries(STORE.map((s) => [s.id, s]));
 
   // Skill tree: 3 branches x 8 rows. Row r (from 0) opens at Monolith 3 + 2r. A node needs the one above it.
-  const BRANCHES = ['DISC', 'TECHNIQUE', 'FORTUNE'];
+  const BRANCHES = ['DISC', 'TECHNIQUE', 'FORTUNE', 'BEAM'];
   const SKILLS = [
     ['edge', 0, 0, 'Destructo Edge', '+20% disc damage', [['discPct', 0.2]], 3, 1],
     ['kictrl', 1, 0, 'Ki Control', '-5% Technique cooldowns', [['techCdPct', 0.05]], 3, 1],
@@ -310,7 +340,9 @@ const IdleCore = (() => {
     ['saver', 2, 6, 'Capsule Saver', '+25% Rainbow Capsules', [['capsPct', 0.25]], 2, 4],
     ['ui', 0, 7, 'Ultra Edge', 'All damage x2', [['allX', 2]], 1, 5],
     ['hellmaster', 1, 7, 'Hellzone Mastery', 'Hellzone Grenade hits twice a second', [['hellRateX', 2]], 1, 5],
-    ['breaker', 2, 7, 'Monolith Breaker', '+15s Monolith time', [['monoTime', 15]], 1, 5]
+    ['breaker', 2, 7, 'Monolith Breaker', '+15s Monolith time', [['monoTime', 15]], 1, 5],
+    // the BEAM branch starts at row 3, when the Ki Beam opens (Monolith 9)
+    ['scorch', 3, 3, 'Scorched Earth', 'Ki Beam burns stack up to 3 times on the same machine', [['burnStack', 2]], 1, 2]
   ].map((n) => ({ id: n[0], col: n[1], row: n[2], name: n[3], desc: n[4], fx: n[5], max: n[6], cost: n[7] }));
   const SKILLBY = Object.fromEntries(SKILLS.map((s) => [s.id, s]));
   const skillRowAt = (row) => 3 + 2 * row;
@@ -379,6 +411,7 @@ const IdleCore = (() => {
     scouter: { name: 'Scouter', r: 0, dur: 180, desc: 'x2 Power Level gain for 3 min', col: '#82f468', buy: 100 },
     rice: { name: "Chi-Chi's Rice Bowl", r: 0, dur: 300, desc: '+50% Zeni from selling for 5 min', col: '#f6f0e0', buy: 200 },
     senzu: { name: 'Senzu Bean', r: 1, dur: 0, desc: 'Every Technique is ready again', col: '#6fd27a' },
+    kidrink: { name: 'Ki Drink', r: 1, dur: 0, desc: 'Refills your Ki', col: '#7fd4ff' },
     chamber: { name: 'Time Chamber', r: 1, dur: 60, desc: 'Everything runs x2 speed for 1 min', col: '#e8e1d6' },
     magnet: { name: 'Capsule Magnet', r: 1, dur: 180, desc: 'Chest meters fill x2 for 3 min', col: '#ff6a6a' },
     water: { name: 'Sacred Water', r: 1, dur: 180, desc: 'Z-Fighters attack 50% faster for 3 min', col: '#bff6ff' },
@@ -415,6 +448,9 @@ const IdleCore = (() => {
       opt: { reduce: false, offBuffs: true },
       // fighter: 'goku' | 'vegeta' (null until picked at the start). formSel: the step the FORM button uses; formOn: the step you're in now
       fighter: null, ki: TUNE.kiMax, formSel: 1, formOn: 0,
+      // Ki Beam: weapon is what holding the field fires ('disc' | 'beam'); beamLook '' = your fighter's own beam;
+      // bup: beam upgrades (this run)
+      weapon: 'disc', beamLook: '', bup: {},
       // Z points for Z-Fighters (kept through Zenkai); zpBought: every point ever bought (sets the price)
       zp: 0, zpBought: 0,
       // Contracts (this run) and Cards (kept)
@@ -524,9 +560,18 @@ const IdleCore = (() => {
       itemExtra: b0(B, 'itemExtra'),
       multiAdd: b0(B, 'multiAdd'),
       startFloor: 1 + b0(B, 'startFloor'),
-      startZeni: B.startZeni ? Math.round(500 * Math.pow(4, B.startZeni - 1)) : 0
+      startZeni: B.startZeni ? Math.round(500 * Math.pow(4, B.startZeni - 1)) : 0,
+      // Ki Beam: hits off the disc's Ki Power (form, buffs and all), so it grows with the disc
+      beamDmg: power * TUNE.beamPower * (1 + 0.1 * blv(S, 'bpow')) * (1 + cardVal(S, 'x_beam')),
+      beamRate: TUNE.beamRate,
+      beamWidth: TUNE.beamWidth + 1.5 * blv(S, 'bwide'),
+      beamDrain: TUNE.beamDrain * Math.max(0.4, 1 - 0.05 * blv(S, 'beff')),
+      beams: 1 + blv(S, 'bsplit'),
+      burnPct: 0.05 * blv(S, 'bburn'),
+      burnStack: 1 + b0(B, 'burnStack')
     };
   }
+  const blv = (S, k) => (S.bup && S.bup[k]) || 0;
   const effDmg = (dmg, armor) => Math.max(dmg - armor, dmg * TUNE.minDmgShare);
   // Crits: chance can pass 100%. Up to 100% it's the chance of a CRIT (x2); beyond that every TUNE.critOver of chance
   // buys 1% of the next tier: SUPER (x3), ULTRA (x4), MEGA (x5)... One roll per hit: the strongest tier that passes.
@@ -578,6 +623,11 @@ const IdleCore = (() => {
     const k = S ? calc(S).alloyCost : 1;
     return { zeni: Math.round(U.base * Math.pow(U.g, l)), alloy: alloyNeed(key, l, U.from, U.per).map(([id, n]) => [id, Math.max(1, Math.ceil(n * k))]) };
   }
+  function beamCost(key, l, S) {
+    const U = BEAM_UPS[key];
+    const k = S ? calc(S).alloyCost : 1;
+    return { zeni: Math.round(U.base * Math.pow(U.g, l)), alloy: alloyNeed('b' + key, l, U.from, U.per).map(([id, n]) => [id, Math.max(1, Math.ceil(n * k))]) };
+  }
   function wsCost(w, l) { return { zeni: Math.round(w.base * Math.pow(w.g, l)), alloy: alloyNeed('ws' + w.id, l + (w.tier === 2 ? 10 : 2), 2, 2, 3) }; }
   function canAfford(S, cost) {
     if (S.zeni < cost.zeni) return false;
@@ -592,7 +642,59 @@ const IdleCore = (() => {
 
   // ------------------------------------------------------------------ world
   function newWorld() {
-    return { mode: 'field', nodes: [], shots: [], dots: [], spawnT: 0, discT: 0, helperT: {}, events: [], bounds: { x0: 4, y0: 4, x1: 120, y1: 200 }, mono: null, nextId: 1, bulma: null, slow: 0 };
+    // beamFrom: where the Ki Beam starts (under your fighter at the top; the page sets it). beamOn: firing this frame;
+    // beamOut: ran dry (or couldn't start) - the hold uses the disc until you let go
+    return { mode: 'field', nodes: [], shots: [], dots: [], spawnT: 0, discT: 0, helperT: {}, events: [], bounds: { x0: 4, y0: 4, x1: 120, y1: 200 }, mono: null, nextId: 1, bulma: null, slow: 0, beamT: 0, beamOn: false, beamOut: false, beamFrom: null };
+  }
+  // the beam(s) as rays: start point and unit direction. The main one goes from your fighter through the finger;
+  // split beams fan out around it.
+  function beamRays(S, W, C, input) {
+    const B = W.bounds;
+    const o = W.beamFrom || [(B.x0 + B.x1) / 2, 0];
+    let dx = input.x - o[0], dy = input.y - o[1];
+    const l = Math.hypot(dx, dy);
+    if (l < 1) { dx = 0; dy = 1; } else { dx /= l; dy /= l; }
+    const a0 = Math.atan2(dy, dx), n = C.beams, out = [];
+    for (let k = 0; k < n; k++) { const a = a0 + (k - (n - 1) / 2) * TUNE.beamSpread; out.push({ x: o[0], y: o[1], dx: Math.cos(a), dy: Math.sin(a) }); }
+    return out;
+  }
+  // how far along a ray a point is, and how far off it (negative along = behind the fighter)
+  const rayDist = (r, x, y) => [(x - r.x) * r.dx + (y - r.y) * r.dy, Math.abs((x - r.x) * r.dy - (y - r.y) * r.dx)];
+  function beamHit(S, W, C, input) {
+    const rays = beamRays(S, W, C, input);
+    const per = C.beamDmg * (rays.length > 1 ? 0.6 : 1), half = C.beamWidth / 2;
+    const burn = C.burnPct > 0 ? per * C.beamRate * C.burnPct : 0; // burn damage a second
+    for (const r of rays) {
+      const crit = rollCrit(C.crit), d = per * critMult(crit, C);
+      if (W.mode === 'mono' && W.mono) {
+        const M = W.mono, [along, off] = rayDist(r, M.x, M.y - M.h / 2);
+        if (along > 0 && off <= half + M.w / 2) { hitMono(S, W, d, 'beam', r.x + r.dx * along, r.y + r.dy * along, crit); if (burn) setBurn(M, burn, C); }
+        continue;
+      }
+      for (const n of W.nodes.slice()) {
+        const [along, off] = rayDist(r, n.x, n.y - n.r * 0.7);
+        if (along <= 0 || off > half + n.r * 0.7) continue;
+        if (burn && n.hp > 0) setBurn(n, burn, C);
+        damageNode(S, W, C, n, d, 'beam', crit);
+      }
+    }
+  }
+  // a burn lasts burnTime after the last beam hit; with Scorched Earth each second in the beam adds a stack (max 3)
+  function setBurn(n, dps, C) {
+    const B = n.burn;
+    if (!B) { n.burn = { dps, t: TUNE.burnTime, k: 1, e: 0, add: 1 }; return; }
+    B.dps = Math.max(B.dps, dps); B.t = TUNE.burnTime;
+    if (B.add <= 0 && B.k < C.burnStack) { B.k++; B.add = 1; }
+  }
+  function burnTick(S, W, C, sdt) {
+    const tickOne = (n, hit) => {
+      const B = n.burn;
+      B.t -= sdt; B.add -= sdt; B.e += sdt;
+      while (B.e >= TUNE.burnEvery && n.burn) { B.e -= TUNE.burnEvery; hit(B.dps * TUNE.burnEvery * B.k); }
+      if (B.t <= 0) n.burn = null;
+    };
+    for (const n of W.nodes.slice()) if (n.burn) tickOne(n, (d) => { if (n.hp > 0) damageNode(S, W, C, n, d, 'burn'); });
+    if (W.mode === 'mono' && W.mono && W.mono.burn) { const M = W.mono; tickOne(M, (d) => hitMono(S, W, d, 'burn', M.x + (Math.random() - 0.5) * M.w * 0.6, M.y - M.h * (0.3 + Math.random() * 0.4))); }
   }
   const emit = (W, e) => { W.events.push(e); if (W.events.length > 400) W.events.splice(0, 100); };
 
@@ -741,20 +843,45 @@ const IdleCore = (() => {
     for (const k of Object.keys(S.buffs)) { S.buffs[k] -= dt; if (S.buffs[k] <= 0) { delete S.buffs[k]; emit(W, { type: 'buffEnd', id: k }); } }
     for (const k of Object.keys(S.tcd)) { S.tcd[k] -= sdt; if (S.tcd[k] <= 0) delete S.tcd[k]; }
     for (const n of W.nodes) { n.flash = Math.max(0, n.flash - dt); n.born += dt; }
-    // Ki: a form drains it, base form refills it; at 0 Ki you drop back to base
-    if (S.formOn > 0) {
-      S.ki -= FORM_TIERS[S.formOn].drain * C.kiDrain * (1 - cardVal(S, 'form' + S.formOn)) * dt;
-      cardRoll(S, W, 'form' + S.formOn, dt);
-      if (S.ki <= 0) { S.ki = 0; S.formOn = 0; emit(W, { type: 'form', tier: 0, out: true }); }
+    // the Ki Beam fires instead of the disc while you hold in BEAM (or right click); it needs some Ki to start, and
+    // when it runs dry the hold falls back to the disc until you let go
+    const held = !!(input && input.down);
+    if (!held) W.beamOut = false;
+    let beaming = false;
+    if (held && has(S, 'beam') && (input.beam || S.weapon === 'beam') && !W.beamOut) {
+      if (!W.beamOn && S.ki < TUNE.beamMinStart) { W.beamOut = true; emit(W, { type: 'beamLow' }); }
+      else beaming = true;
+    }
+    W.beamOn = beaming;
+    // Ki: a form drains it, so does the beam; it refills only in base form with the beam off. At 0 Ki you drop back
+    // to base and the beam stops
+    if (S.formOn > 0 || beaming) {
+      if (S.formOn > 0) {
+        S.ki -= FORM_TIERS[S.formOn].drain * C.kiDrain * (1 - cardVal(S, 'form' + S.formOn)) * dt;
+        cardRoll(S, W, 'form' + S.formOn, dt);
+      }
+      if (beaming) { S.ki -= C.beamDrain * dt; cardRoll(S, W, 'x_beam', dt); }
+      if (S.ki <= 0) {
+        S.ki = 0;
+        if (S.formOn > 0) { S.formOn = 0; emit(W, { type: 'form', tier: 0, out: true }); }
+        if (beaming) { W.beamOut = true; W.beamOn = beaming = false; emit(W, { type: 'beamOut' }); }
+      }
     } else S.ki = Math.min(C.kiMax, S.ki + C.kiRegen * dt);
 
     if (W.mode === 'field') {
       W.spawnT -= sdt;
       if (W.spawnT <= 0 && W.nodes.length < C.maxNodes) { spawnNode(S, W); W.spawnT = C.spawn; }
     }
+    // the beam
+    const bstep = 1 / C.beamRate;
+    if (beaming) {
+      W.beamT += sdt;
+      while (W.beamT >= bstep) { W.beamT -= bstep; beamHit(S, W, C, input); }
+    } else W.beamT = bstep; // the first hit lands the moment it fires
+    burnTick(S, W, C, sdt);
     // the disc
     const step = 1 / C.spin;
-    if (input && input.down) {
+    if (held && !beaming) {
       W.discT += sdt;
       while (W.discT >= step) {
         W.discT -= step;
@@ -899,6 +1026,28 @@ const IdleCore = (() => {
     goalHit(S, 'upgrade', null, 1);
     return true;
   }
+  function buyBeam(S, key) {
+    const l = blv(S, key);
+    if (!has(S, 'beam') || l >= BEAM_UPS[key].max) return false;
+    const cost = beamCost(key, l, S);
+    if (!canAfford(S, cost)) return false;
+    pay(S, cost);
+    S.bup[key] = l + 1;
+    return true;
+  }
+  // what holding the field fires
+  function setWeapon(S, w) {
+    if (w === 'beam' && !has(S, 'beam')) return false;
+    S.weapon = w === 'beam' ? 'beam' : 'disc';
+    return true;
+  }
+  const lookOwned = (S, id) => { const L = BEAM_LOOK[id]; return !!L && !L.later && (!L.store || (S.store[L.store] || 0) > 0); };
+  const beamLookOf = (S) => BEAM_LOOK[lookOwned(S, S.beamLook) ? S.beamLook : S.fighter === 'vegeta' ? 'galick' : 'kamehameha'];
+  function setBeamLook(S, id) {
+    if (id && !lookOwned(S, id)) return false;
+    S.beamLook = id || '';
+    return true;
+  }
   function buyWs(S, id) {
     const w = WORKSHOP.find((x) => x.id === id);
     const l = S.ws[id] || 0;
@@ -1002,11 +1151,16 @@ const IdleCore = (() => {
     if (id === 'senzu') {
       if (!Object.keys(S.tcd).length) return false;
       S.tcd = {};
+    } else if (id === 'kidrink') {
+      const max = calc(S).kiMax;
+      if (S.ki >= max - 0.5) return false;
+      S.ki = max;
     } else {
       if ((S.buffs[id] || 0) + I.dur > BUFF_MAX) return false;
       S.buffs[id] = Math.min(BUFF_MAX, (S.buffs[id] || 0) + I.dur * (1 + cardVal(S, 'i_' + id)));
     }
-    if (!(id === 'senzu' && Math.random() < cardVal(S, 'i_senzu'))) S.items[id]--;
+    // the instant items' cards give a chance to keep the item
+    if (!(I.dur === 0 && Math.random() < cardVal(S, 'i_' + id))) S.items[id]--;
     cardRoll(S, W, 'i_' + id, 1);
     S.run.itemsUsed++;
     emit(W, { type: 'item', id });
@@ -1163,7 +1317,7 @@ const IdleCore = (() => {
   }
   function buyStore(S, id) {
     const s = STOREBY[id];
-    if (!s || !has(S, 'store') || S.caps < s.cost) return false;
+    if (!s || !has(S, 'store') || S.caps < s.cost || (s.need && !has(S, s.need))) return false;
     if (s.max && (S.store[id] || 0) >= s.max) return false;
     S.caps -= s.cost;
     S.store[id] = (S.store[id] || 0) + 1;
@@ -1186,7 +1340,7 @@ const IdleCore = (() => {
     return Math.floor(Math.pow(S.level - 15, 1.25) * (1 + 0.1 * S.mono.tier) * (1 + S.maxFloor / 200) * (1 + S.mono.best * 0.5) * C.zkMult);
   }
   // what Zenkai keeps; everything else starts over
-  const KEEP = ['caps', 'skillPts', 'mono', 'helpers', 'items', 'chests', 'meter', 'ws', 'sup', 'store', 'skills', 'wishes', 'autoTech', 'zenkai', 'bulma', 'goals', 'seen', 'stats', 'opt', 'created', 'fighter', 'formSel', 'zp', 'zpBought', 'cards'];
+  const KEEP = ['caps', 'skillPts', 'mono', 'helpers', 'items', 'chests', 'meter', 'ws', 'sup', 'store', 'skills', 'wishes', 'autoTech', 'zenkai', 'bulma', 'goals', 'seen', 'stats', 'opt', 'created', 'fighter', 'formSel', 'zp', 'zpBought', 'cards', 'weapon', 'beamLook'];
   function zenkai(S, W, now) {
     const g = zenkaiGain(S);
     if (g <= 0 || W.mode !== 'field') return false;
@@ -1314,7 +1468,7 @@ const IdleCore = (() => {
   HELPERS.forEach((h) => card('f_' + h.id, 'fighter', h.name, 'Let ' + h.name + ' fight', h.name + "'s damage", 1 / 20000, 80, { h: h.id }));
   for (let k = 1; k < FORM_TIERS.length; k++) card('form' + k, 'form', formName(k), 'Stay in this form', 'less Ki drain in this form', 1 / 900, 100, { tier: k });
   for (const k of TECH_KEYS) card('t_' + k, 'tech', TECHS[k].name, 'Use ' + TECHS[k].name, 'faster ' + TECHS[k].name + ' cooldown', 1 / 120, 60, { tk: k });
-  for (const k of ITEM_KEYS) card('i_' + k, 'item', ITEMS[k].name, 'Use ' + ITEMS[k].name, k === 'senzu' ? 'chance to keep the Senzu Bean' : 'longer ' + ITEMS[k].name, 1 / 25, 40, { ik: k });
+  for (const k of ITEM_KEYS) card('i_' + k, 'item', ITEMS[k].name, 'Use ' + ITEMS[k].name, ITEMS[k].dur === 0 ? 'chance to keep the ' + ITEMS[k].name : 'longer ' + ITEMS[k].name, 1 / 25, 40, { ik: k });
   REGIONS.forEach((r, i) => card('r' + i, 'region', r.name, 'Go down floors in ' + r.name, 'Power Level XP in ' + r.name, 1 / 60, 50, { region: i }));
   card('x_mono', 'misc', 'Katchin', 'Break a Katchin Monolith (always drops)', 'damage to the Monolith', 0, 120);
   card('x_bulma', 'misc', 'Loot Bulma', 'Catch Loot Bulma', "Loot Bulma's Zeni prize", 1 / 8, 100);
@@ -1323,6 +1477,7 @@ const IdleCore = (() => {
   card('x_contract', 'misc', "Bulma's Order", 'Finish Contracts', 'Contract Points', 1 / 15, 100);
   card('x_goal', 'misc', 'Training Goal', 'Claim Training Goals', 'Training Goal Zeni', 1 / 8, 80);
   card('x_crit', 'misc', 'Critical Hit', 'Land SUPER crits or better with the disc', 'crit damage', 1 / 4000, 100);
+  card('x_beam', 'misc', 'Ki Beam', 'Fire the Ki Beam', 'Ki Beam damage', 1 / 600, 100);
   const CARD = Object.fromEntries(CARDS.map((c) => [c.id, c]));
   const CARD_KINDS = [['machine', 'MACHINES'], ['alloy', 'ALLOY'], ['fighter', 'Z-FIGHTERS'], ['form', 'FORMS'], ['tech', 'TECHNIQUES'], ['item', 'ITEMS'], ['region', 'REGIONS'], ['misc', 'MISC']];
   const CARD_PERK = 0.05;
@@ -1495,7 +1650,8 @@ const IdleCore = (() => {
     goalsFor, goalReward, claimGoal, offline, fmt, fmtTime, zpZeni, zpCost, zpMax, buyZp,
     FIGHTERS, FORM_TIERS, fighterOf, formLook, formOpen, formsOpenTop, transform, selectForm, helperView,
     CT_UPS, CT_BY, ctOpen, ctMax, ctUpCost, ctCurrent, ctDeliver, ctReroll, buyCt,
-    CARDS, CARD, CARD_KINDS, CARD_PERK, cardVal, transformCost, transformCard, cardCount
+    CARDS, CARD, CARD_KINDS, CARD_PERK, cardVal, transformCost, transformCard, cardCount,
+    BEAM_UPS, BEAM_KEYS, BEAM_LOOKS, BEAM_LOOK, beamCost, buyBeam, setWeapon, lookOwned, beamLookOf, setBeamLook, beamRays
   };
 })();
 if (typeof module !== 'undefined') module.exports = IdleCore;

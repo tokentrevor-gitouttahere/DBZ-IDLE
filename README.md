@@ -26,4 +26,5 @@ node tools/sim.js 24 0.7   # 24h pacing bot
 
 Machines and levels: craftpix.net packs (https://craftpix.net/file-licenses/), cut down and repainted in the game.
 Fighters: the DBZ Fight Simulator's rigs (pivot figures by Killeroner and FNF GAMPLAY, edited for the sim).
+Goku Super Saiyan 3 (HUD and form card): art by @stickfigurecreator2, cut out and mirrored.
 Font: Silkscreen by Jason Kottke, SIL Open Font License 1.1.

@@ -7,7 +7,7 @@
   let S, W, C;
   const input = { down: false, x: 0, y: 0, id: null };
   let lastT = 0, lastWall = Date.now(), saveT = 0, sheet = null, sheetStack = [], lockUntil = 0, sheetSig = '', modalOpen = false;
-  const ui = { labRegion: 0, amt: 'max', resetArm: 0, ccTab: 'crew', skill: null, lastLoot: null, monoTab: 'next', zpAmt: '1', cardKind: 'machine' };
+  const ui = { labRegion: 0, amt: 'max', resetArm: 0, ccTab: 'crew', skill: null, lastLoot: null, monoTab: 'next', zpAmt: '1', cardKind: 'machine', discTab: 'disc' };
   const app = $('#app'), cv = $('#field');
 
   // ------------------------------------------------------------------ tips: the loading splash and the Zenkai window
@@ -21,7 +21,8 @@
     'Hold the disc where machines bunch up: one spin saws through all of them.',
     'Krillin\'s Cutting Edge ignores armor. Planet 1 machines have none, but the Monolith and Planet 2 do.',
     'Vegeta\'s blasts double with every Trait level, up to 64 a throw.',
-    'Switch between Goku and Vegeta any time in Menu, Options. It only changes the looks.'
+    'Switch between Goku and Vegeta any time in Menu, Options. It only changes the looks.',
+    'The Ki Beam (Monolith 9) and forms drink from the same Ki. Beam while transformed for a huge burst, then rest in base form to refill.'
   ];
   // the Zenkai tip comes up a lot more than the rest
   const pickTip = () => (Math.random() < 0.4 ? TIPS[0] : TIPS[1 + Math.floor(Math.random() * (TIPS.length - 1))]);
@@ -106,6 +107,9 @@
       from[el.dataset.h] = Render.toGame(b.left + b.width / 2 - r.left, b.top + 6 - r.top);
     });
     Render.setHelperOrigins(from);
+    // the Ki Beam leaves from your fighter's hands at the top
+    const fc = $('#hFace').getBoundingClientRect();
+    W.beamFrom = Render.toGame(fc.left + fc.width / 2 - r.left, fc.bottom - r.top + 2);
     W.nodes = W.nodes.filter((n) => n.x > W.bounds.x0 && n.x < W.bounds.x1 && n.y > W.bounds.y0 && n.y < W.bounds.y1 + 4);
   }
 
@@ -124,12 +128,13 @@
     const [gx, gy] = gamePos(e);
     if (Render.hitsBulma(W, gx, gy)) { const got = G.catchBulma(S, W, Date.now()); if (got) { toast('LOOT BULMA: ' + got.toUpperCase()); save(); } e.preventDefault(); return; }
     input.down = true; input.id = e.pointerId; setPos(e);
+    input.beam = e.button === 2; // right click fires the Ki Beam whatever HOLD is set to
     try { cv.setPointerCapture(e.pointerId); } catch (err) { /* old browsers */ }
     $('#hint').hidden = true;
     e.preventDefault();
   });
   cv.addEventListener('pointermove', (e) => { if (input.down && e.pointerId === input.id) setPos(e); });
-  const up = (e) => { if (e.pointerId === input.id) { input.down = false; input.id = null; } };
+  const up = (e) => { if (e.pointerId === input.id) { input.down = false; input.id = null; input.beam = false; } };
   cv.addEventListener('pointerup', up);
   cv.addEventListener('pointercancel', up);
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -140,6 +145,7 @@
     const n = +e.key;
     if (n >= 1 && n <= G.TECH_KEYS.length) act('tech', { id: G.TECH_KEYS[n - 1] });
     if (e.key === 'f' || e.key === 'F') act('form');
+    if (e.key === 'b' || e.key === 'B') act('weapon');
   });
 
   // ------------------------------------------------------------------ main loop
@@ -216,13 +222,15 @@
     const ab = document.getElementById('tAuto');
     if (ab) { tog(ab, 'on', S.autoTech); set('tAuto', S.autoTech ? 'AUTO ON' : 'AUTO'); }
     // forms: the FORM button and the Ki bar
-    const formSig = G.formsOpenTop(S) + ':' + S.formSel + ':' + S.formOn + ':' + S.fighter;
+    const formSig = G.formsOpenTop(S) + ':' + S.formSel + ':' + S.formOn + ':' + S.fighter + ':' + S.weapon + G.has(S, 'beam') + S.beamLook;
     if (last.formSig !== formSig) { last.formSig = formSig; buildForm(); }
     if (G.formsOpenTop(S) > 0) {
       set('kiF', 'calc(' + Math.min(100, (S.ki / C.kiMax) * 100).toFixed(1) + '% - 2px)', 'w');
       set('kiN', 'KI ' + Math.floor(S.ki) + '/' + Math.round(C.kiMax));
       const fb = document.getElementById('fBtn');
       if (fb) tog(fb, 'low', !S.formOn && S.ki < G.TUNE.kiMinStart);
+      const wb = document.getElementById('wBtn');
+      if (wb) tog(wb, 'firing', W.beamOn);
     }
     // Monolith
     const mono = W.mode === 'mono';
@@ -254,7 +262,8 @@
       if (el && S.helpers[h.id]) el.style.width = Math.min(100, ((W.helperT[h.id] || 0) / G.helperStats(S, C, h).every) * 100) + '%';
     }
     // dots: something to buy
-    $('#dotDisc').hidden = !G.UP_KEYS.some((k) => (S.up[k] || 0) < G.UPS[k].max && G.canAfford(S, G.upCost(k, S.up[k] || 0, S)));
+    $('#dotDisc').hidden = !(G.UP_KEYS.some((k) => (S.up[k] || 0) < G.UPS[k].max && G.canAfford(S, G.upCost(k, S.up[k] || 0, S)))
+      || (G.has(S, 'beam') && G.BEAM_KEYS.some((k) => (S.bup[k] || 0) < G.BEAM_UPS[k].max && G.canAfford(S, G.beamCost(k, S.bup[k] || 0, S)))));
     $('#dotItems').hidden = !((iOn && S.chests.item > 0) || (sOn && S.chests.super > 0));
     $('#dotCC').hidden = !(G.HELPERS.some((h) => G.has(S, 'companions') && S.mono.tier >= h.mono && !S.helpers[h.id] && S.zp + (S.zeni >= G.zpCost(S, 1) ? G.zpMax(S) : 0) >= h.hire));
     $('#dotMenu').hidden = !(G.zenkaiGain(S) > 0 || (G.has(S, 'skills') && S.skillPts > 0 && G.SKILLS.some((s) => canSkill(s))) || G.ZK.some((z) => G.zkTierOpen(S, z.tier) && (S.zenkai.up[z.id] || 0) < z.max && S.zenkai.pts >= G.zkCost(z, S.zenkai.up[z.id] || 0)));
@@ -351,7 +360,12 @@
     el.innerHTML = '<span class="t">FORM</span>'
       + '<button class="btn tbtn form' + (S.formOn ? ' on' : '') + '" id="fBtn" data-act="form" style="--aura:' + L.aura + '" aria-label="' + (S.formOn ? 'Power down from ' : 'Transform: ') + esc(L.name) + '"><i style="background:' + L.aura + '"></i>' + esc(L.short) + '</button>'
       + (top > 1 ? '<div class="fsel"><button class="btn alt" data-act="formStep" data-d="-1" aria-label="Lower form"' + (sel <= 1 ? ' disabled' : '') + '>&#9664;</button><button class="btn alt" data-act="formStep" data-d="1" aria-label="Higher form"' + (sel >= top ? ' disabled' : '') + '>&#9654;</button></div>' : '')
-      + '<div class="kibar"><i id="kiF"></i></div><span class="kin num" id="kiN"></span>';
+      + '<div class="kibar"><i id="kiF"></i></div><span class="kin num" id="kiN"></span>'
+      // HOLD: what holding the field fires (the Ki Beam shares the Ki bar above)
+      + '<span class="t">HOLD</span>'
+      + (G.has(S, 'beam')
+        ? '<button class="btn tbtn wbtn' + (S.weapon === 'beam' ? ' beam' : '') + '" id="wBtn" data-act="weapon" style="--beam:' + G.beamLookOf(S).col[1] + '" aria-label="Holding fires the ' + (S.weapon === 'beam' ? 'Ki Beam. Tap for the disc' : 'disc. Tap for the Ki Beam') + '"><i></i>' + (S.weapon === 'beam' ? 'BEAM' : 'DISC') + '</button>'
+        : '<span class="tlock">BEAM<br>M' + G.unlockAt('beam') + '</span>');
     delete last.kiF; delete last.kiN;
   }
 
@@ -372,6 +386,8 @@
     else if (e.type === 'contract') toast('CONTRACT DONE: +' + fmt(e.pts) + ' CONTRACT POINTS' + (e.mult > 1 ? ' (x' + e.mult + '!)' : ''));
     else if (e.type === 'form') { if (e.out) toast('OUT OF KI - BACK TO BASE FORM'); else if (e.tier) banner(G.formLook(S, e.tier).name, G.fighterOf(S).name.toUpperCase() + ' - x' + G.FORM_TIERS[e.tier].mult + ' DISC DAMAGE'); }
     else if (e.type === 'bulma') toast('LOOT BULMA IS FLYING BY - TAP HER PLANE!');
+    else if (e.type === 'beamOut') toast('OUT OF KI - THE DISC TAKES OVER');
+    else if (e.type === 'beamLow') { if (!last.beamLowT || Date.now() - last.beamLowT > 4000) { last.beamLowT = Date.now(); toast('THE BEAM NEEDS ' + G.TUNE.beamMinStart + ' KI - DISC FOR NOW'); } }
     else if (e.type === 'wish') { const w = G.WISHES.find((x) => x.id === e.id); toast('BUU WISH GRANTED: ' + w.name.toUpperCase() + ' - ' + w.reward.toUpperCase()); }
   }
   function toast(msg) {
@@ -447,6 +463,13 @@
         if (!G.transform(S, W)) toast('NEED ' + G.TUNE.kiMinStart + ' KI TO TRANSFORM');
         break;
       case 'formStep': G.selectForm(S, W, Math.min(S.formSel || 1, G.formsOpenTop(S)) + +d.d); break;
+      case 'weapon':
+        if (!G.setWeapon(S, S.weapon === 'beam' ? 'disc' : 'beam')) { toast('THE KI BEAM OPENS WITH MONOLITH ' + G.unlockAt('beam')); return; }
+        toast(S.weapon === 'beam' ? 'HOLD FIRES THE ' + G.beamLookOf(S).name.toUpperCase() + ' (USES KI)' : 'HOLD SPINS THE DESTRUCTO DISC');
+        break;
+      case 'bup': if (!G.buyBeam(S, d.k)) toast('MISSING ZENI OR ALLOY'); break;
+      case 'beamLook': if (!G.setBeamLook(S, d.id)) toast(d.store ? 'GET THIS LOOK IN THE CAPSULE STORE' : 'THIS LOOK UNLOCKS LATER'); break;
+      case 'discTab': ui.discTab = d.v; break;
       case 'fighter': {
         S.fighter = d.id === 'vegeta' ? 'vegeta' : 'goku';
         paintFace(); buildCrew(); buildForm();
@@ -463,7 +486,7 @@
       case 'floorDown': G.setFloor(S, W, S.maxFloor); break;
       case 'floors': showFloors(); return;
       case 'goFloor': G.setFloor(S, W, +d.f); closeModal(); break;
-      case 'use': if (!G.useItem(S, W, d.id)) toast(d.id === 'senzu' ? 'NO TECHNIQUE IS RECHARGING' : 'THAT BUFF IS ALREADY STACKED TO 20 MINUTES'); else toast(G.ITEMS[d.id].name.toUpperCase() + '!'); if (modalOpen) showMonoPrep(now); break;
+      case 'use': if (!G.useItem(S, W, d.id)) toast(d.id === 'senzu' ? 'NO TECHNIQUE IS RECHARGING' : d.id === 'kidrink' ? 'YOUR KI IS ALREADY FULL' : 'THAT BUFF IS ALREADY STACKED TO 20 MINUTES'); else toast(G.ITEMS[d.id].name.toUpperCase() + '!'); if (modalOpen) showMonoPrep(now); break;
       case 'buyItem': if (!G.buyItem(S, d.id, +d.n || 1)) toast('NOT ENOUGH ZENI'); if (modalOpen) showMonoPrep(now); break;
       case 'up': if (!G.buyUp(S, d.k)) toast('MISSING ZENI OR ALLOY'); break;
       case 'ws': if (!G.buyWs(S, d.id)) toast('MISSING ZENI OR ALLOY'); break;
@@ -501,13 +524,13 @@
         S = G.newState(now); W = G.newWorld(); layout(); closeSheet(); buildCrew(); buildTechs(); buildForm(); paintFace(); showFighterPick(() => showHelp(true)); save(); return;
       default: changed = false;
     }
-    if (changed) { refreshSheet(true); if (!['amt', 'zpAmt', 'cardKind', 'labRegion', 'ccTab', 'monoTab', 'skill', 'goal'].includes(a)) save(); }
+    if (changed) { refreshSheet(true); if (!['amt', 'zpAmt', 'cardKind', 'labRegion', 'ccTab', 'monoTab', 'skill', 'goal', 'discTab'].includes(a)) save(); }
   }
   function amount(max) { return ui.amt === 'max' ? max : Math.min(max, +ui.amt); }
   const regionMachines = (r) => G.MACHINES.slice(r * 5, r * 5 + 5);
 
   // ------------------------------------------------------------------ sheets
-  const TITLES = { lab: "Bulma's Lab", disc: 'Disc Upgrades', items: 'Capsule Items', chests: 'Chests', cc: 'Capsule Corp', menu: 'Menu', zenkai: 'Zenkai', stats: 'Scouter Stats', options: 'Options', cards: 'Cards', help: 'How To Play', credits: 'Credits', goals: 'Training Goals', mono: 'Katchin Monolith', skills: 'Skill Tree', wishes: 'Buu Wishes', bonuses: 'SUPER Bonuses' };
+  const TITLES = { lab: "Bulma's Lab", disc: 'Upgrades', items: 'Capsule Items', chests: 'Chests', cc: 'Capsule Corp', menu: 'Menu', zenkai: 'Zenkai', stats: 'Scouter Stats', options: 'Options', cards: 'Cards', help: 'How To Play', credits: 'Credits', goals: 'Training Goals', mono: 'Katchin Monolith', skills: 'Skill Tree', wishes: 'Buu Wishes', bonuses: 'SUPER Bonuses' };
   function openSheet(id, tab, isBack) {
     if (W.mode === 'mono' && id !== 'stats') { toast('FINISH THE MONOLITH FIGHT FIRST'); return; }
     if (id === 'lab' && sheet !== 'lab') ui.labRegion = G.regionOf(S.floor);
@@ -563,6 +586,36 @@
     return [f(a), f(b)];
   }
 
+  // the KI BEAM tab: how it works, which look it fires as, and its upgrades (reset by Zenkai, like the disc's)
+  function beamEffect(k) {
+    const l = S.bup[k] || 0;
+    const base = Object.assign({}, S, { buffs: {}, formOn: 0 });
+    const a = G.calc(base), b = G.calc(Object.assign({}, base, { bup: Object.assign({}, S.bup, { [k]: l + 1 }) }));
+    const f = { bpow: (c) => fmt(c.beamDmg), bwide: (c) => c.beamWidth.toFixed(1), beff: (c) => c.beamDrain.toFixed(2) + ' Ki/s', bsplit: (c) => String(c.beams), bburn: (c) => Math.round(c.burnPct * 100) + '%' }[k];
+    return [f(a), f(b)];
+  }
+  function beamHtml() {
+    const L = G.beamLookOf(S);
+    let h = card('Set HOLD to <b style="color:var(--text)">BEAM</b> (under FORM, key B, or hold the right mouse button): your ' + esc(L.name) + ' fires from your fighter through your finger to the edge of the field and hits everything on the way, the Monolith too. '
+      + fmt(C.beamDmg) + ' a hit, ' + C.beamRate + ' hits/s' + (C.beams > 1 ? ' (' + C.beams + ' beams at 60%)' : '') + ', crits like the disc. It drains ' + C.beamDrain.toFixed(1) + ' Ki a second on top of any form, and Ki only refills in base form with the beam off. Out of Ki, the disc takes over. These upgrades reset on Zenkai.', true);
+    h += '<div class="sec">LOOK (ALL WORK THE SAME)</div><div class="tabs">';
+    for (const B of G.BEAM_LOOKS) {
+      const own = G.lookOwned(S, B.id), on = B.id === L.id;
+      h += '<button class="btn ' + (on ? 'gold' : 'alt') + ' blook" data-act="beamLook" data-id="' + B.id + '"' + (B.store ? ' data-store="1"' : '') + (own ? '' : ' aria-disabled="true"') + '><i style="background:' + B.col[1] + ';box-shadow:0 0 0 2px ' + B.col[0] + '"></i>' + esc(B.name.toUpperCase()) + (own ? '' : B.store ? ' (STORE)' : ' (LATER)') + '</button>';
+    }
+    h += '</div>';
+    if (S.beamLook) h += '<div class="tabs"><button class="btn alt" data-act="beamLook" data-id="">USE MY FIGHTER\'S BEAM</button></div>';
+    h += '<div class="sec">UPGRADES</div>';
+    for (const k of G.BEAM_KEYS) {
+      const U = G.BEAM_UPS[k], l = S.bup[k] || 0, maxed = l >= U.max;
+      const cost = maxed ? null : G.beamCost(k, l, S);
+      const [a, b] = beamEffect(k);
+      h += '<div class="row"><div><div class="nm"><span>' + U.name + '</span><span class="pill num">' + l + '/' + U.max + '</span></div><div class="sub">' + U.desc + ': <b style="color:var(--text)">' + a + '</b>' + (maxed ? '' : ' &gt; <b style="color:var(--gold)">' + b + '</b>') + '</div></div>'
+        + '<div class="acts">' + (maxed ? '<span class="pill g">MAXED</span>' : '<button class="btn" data-act="bup" data-k="' + k + '"' + (G.canAfford(S, cost) ? '' : ' disabled') + '>BUY</button>') + '</div>'
+        + (maxed ? '' : '<div class="cost">' + costChips(cost) + '</div>') + '</div>';
+    }
+    return h;
+  }
   // a card: its art (machine, alloy ingot, fighter, form look, Technique / item colour, region ground, misc mark),
   // name, perk and either how to get it or the TRANSFORM button. Transformed ones get the gold frame + glint.
   function cardArt(K) {
@@ -573,7 +626,7 @@
     if (K.kind === 'tech') return '<i class="cart-sq" style="background:' + G.TECHS[K.tk].col + '"></i>';
     if (K.kind === 'item') return '<i class="cart-gem" style="background:' + G.ITEMS[K.ik].col + '"></i>';
     if (K.kind === 'region') { const R = G.REGIONS[K.region]; return '<i class="cart-sq" style="background:repeating-linear-gradient(45deg,' + R.ground[0] + ' 0 4px,' + R.ground[2] + ' 4px 8px);box-shadow:inset 0 0 0 2px ' + R.crack + '"></i>'; }
-    return '<i class="cart-misc">' + ({ x_mono: '&#9650;', x_bulma: '&#9992;', x_zenkai: '&#9733;', x_chest: '&#9635;', x_contract: '&#9998;', x_goal: '&#10003;', x_crit: '!' }[K.id] || '?') + '</i>';
+    return '<i class="cart-misc">' + ({ x_mono: '&#9650;', x_bulma: '&#9992;', x_zenkai: '&#9733;', x_chest: '&#9635;', x_contract: '&#9998;', x_goal: '&#10003;', x_crit: '!', x_beam: '&#9660;' }[K.id] || '?') + '</i>';
   }
   // form cards are named after your fighter's form (Super Saiyan 2 or Majin Vegeta)
   const cardName = (K) => (K.kind === 'form' ? G.formLook(S, K.tier).name : K.kind === 'fighter' ? G.helperView(S, G.HELPER[K.h]).name : K.name);
@@ -623,7 +676,10 @@
       return h;
     },
     disc() {
-      let h = card('Ki Power ' + fmt(C.basePower) + ' &middot; ' + C.spin.toFixed(1) + ' hits/s &middot; radius ' + C.radius.toFixed(1) + ' &middot; crit ' + Math.round(C.crit * 100) + '%. These reset on Zenkai. Higher levels need alloy from deeper machines, and every third level an older part: go back up and farm it.', true);
+      const bOn = G.has(S, 'beam');
+      let h = '<div class="tabs"><button class="btn ' + (ui.discTab !== 'beam' ? 'gold' : 'alt') + '" data-act="discTab" data-v="disc">DESTRUCTO DISC</button><button class="btn ' + (ui.discTab === 'beam' ? 'gold' : 'alt') + '" data-act="discTab" data-v="beam">KI BEAM' + (bOn ? '' : ' (M' + G.unlockAt('beam') + ')') + '</button></div>';
+      if (ui.discTab === 'beam') return h + (bOn ? beamHtml() : lockline(G.unlockAt('beam'), 'THE KI BEAM'));
+      h += card('Ki Power ' + fmt(C.basePower) + ' &middot; ' + C.spin.toFixed(1) + ' hits/s &middot; radius ' + C.radius.toFixed(1) + ' &middot; crit ' + Math.round(C.crit * 100) + '%. These reset on Zenkai. Higher levels need alloy from deeper machines, and every third level an older part: go back up and farm it.', true);
       for (const k of G.UP_KEYS) {
         const U = G.UPS[k], l = S.up[k] || 0, maxed = l >= U.max;
         const cost = maxed ? null : G.upCost(k, l, S);
@@ -728,9 +784,9 @@
         if (!G.has(S, 'store')) return h + lockline(G.unlockAt('store'), 'THE CAPSULE STORE');
         h += card('Rainbow Capsules come from SUPER chests, Monolith clears, Loot Bulma and Kaio-ken. You have ' + capico + ' <b>' + fmt(S.caps) + '</b>. They are only ever earned in the game.', true);
         for (const s of G.STORE) {
-          const l = S.store[s.id] || 0, maxed = s.max && l >= s.max;
-          h += '<div class="row"><div><div class="nm"><span>' + s.name + '</span>' + (s.max ? '<span class="pill num">' + l + '/' + s.max + '</span>' : '') + '</div><div class="sub">' + s.desc + '</div></div>'
-            + '<div class="acts">' + (maxed ? '<span class="pill g">MAXED</span>' : '<button class="btn" data-act="store" data-id="' + s.id + '"' + (S.caps >= s.cost ? '' : ' disabled') + '>' + capico + ' ' + s.cost + '</button>') + '</div></div>';
+          const l = S.store[s.id] || 0, maxed = s.max && l >= s.max, lock = s.need && !G.has(S, s.need);
+          h += '<div class="row' + (lock ? ' dim' : '') + '"><div><div class="nm"><span>' + s.name + '</span>' + (s.max ? '<span class="pill num">' + l + '/' + s.max + '</span>' : '') + '</div><div class="sub">' + s.desc + '</div></div>'
+            + '<div class="acts">' + (lock ? '<span class="pill">MONOLITH ' + G.unlockAt(s.need) + '</span>' : maxed ? '<span class="pill g">' + (s.max === 1 ? 'OWNED' : 'MAXED') + '</span>' : '<button class="btn" data-act="store" data-id="' + s.id + '"' + (S.caps >= s.cost ? '' : ' disabled') + '>' + capico + ' ' + s.cost + '</button>') + '</div></div>';
         }
       }
       return h;
@@ -785,11 +841,12 @@
       let h = '<div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:7px 9px"><span>SKILL POINTS</span><b class="big num" style="color:#ff8fd0">' + S.skillPts + '</b></div>';
       h += '<div class="tree">' + G.BRANCHES.map((b) => '<div class="tcol-h">' + b + '</div>').join('');
       for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 3; c++) {
+        for (let c = 0; c < G.BRANCHES.length; c++) {
           const s = G.SKILLS.find((x) => x.col === c && x.row === r);
+          if (!s) { h += '<span></span>'; continue; } // the BEAM branch starts lower down
           const l = S.skills[s.id] || 0;
           const open = G.skillRowOpen(S, r);
-          const cls = ['node', 'r' + r, open ? '' : 'locked', l >= s.max ? 'maxed' : canSkill(s) ? 'avail' : '', ui.skill === s.id ? 'sel' : ''].join(' ');
+          const cls = ['node', 'r' + r, G.skillParent(s) ? '' : 'root', open ? '' : 'locked', l >= s.max ? 'maxed' : canSkill(s) ? 'avail' : '', ui.skill === s.id ? 'sel' : ''].join(' ');
           h += '<button class="' + cls + '" data-act="skill" data-id="' + s.id + '"><span>' + esc(s.name) + '</span><span class="lvn">' + (open ? l + '/' + s.max : 'M' + G.skillRowAt(r)) + '</span></button>';
         }
       }
@@ -841,6 +898,7 @@
         ['Ki Power', fmt(C.power)], ['Disc hits / s', C.spin.toFixed(1)], ['Disc radius', C.radius.toFixed(1)], ['Disc crit chance', Math.round(C.crit * 100) + '% (' + critText(C.crit) + ')'], ['Crit damage bonus', '+' + Math.round((C.critDmg - 1) * 100) + '%'],
         ['Max machines', C.maxNodes], ['Technique damage', fmt(C.power * C.techMult)], ['Monolith time', C.monoTime + 's'],
         ['Cards / Transformed', G.has(S, 'cards') ? G.cardCount(S)[0] + '/' + G.CARDS.length + ' / ' + G.cardCount(S)[1] : 'Monolith ' + G.unlockAt('cards')], ['Contracts this run', S.ct.done + ' (' + fmt(S.ct.pts) + ' CP)'],
+        ['Ki Beam', G.has(S, 'beam') ? fmt(C.beamDmg) + ' x ' + C.beamRate + '/s' + (C.beams > 1 ? ' x ' + C.beams + ' beams (60%)' : '') + ', ' + C.beamDrain.toFixed(1) + ' Ki/s' : 'Monolith ' + G.unlockAt('beam')],
         ['Fighter / form', G.fighterOf(S).name + ' / ' + G.formLook(S, S.formOn).name + (S.formOn ? ' (x' + C.formMult + ')' : '')], ['Ki', Math.floor(S.ki) + ' / ' + Math.round(C.kiMax) + ' (+' + C.kiRegen.toFixed(1) + '/s in base form)'],
         ['Floor / best this run', S.floor + ' / ' + S.maxFloor], ['Monoliths cleared', S.mono.tier], ['Power Level cap', G.levelCap(S)],
         ['Zenkai done', S.zenkai.count], ['Zenkai points earned', fmt(S.zenkai.total)], ['Rainbow Capsules earned', fmt(st.capsEarned)],
@@ -874,7 +932,8 @@
       const rigs = (typeof FS_RIGS !== 'undefined' ? FS_RIGS.RIGS : []);
       return card('DBZ Idle is a mode of the DBZ Fight Simulator. It is a fan project, not affiliated with the Dragon Ball rights holders. Every enemy is a machine.')
         + '<div class="sec">MACHINES, LEVELS AND ICONS</div>' + card('Pixel art packs from craftpix.net (free and licensed packs): drones, robots, factory bosses, war machines, village, dungeon, undead and seabed tilesets, crystals. Repainted variants made in the game.')
-        + '<div class="sec">FIGHTERS</div><div class="card">' + rigs.map((r) => '<p>' + esc(r.title) + ' &middot; <span class="mute">Pivot figure by ' + esc(r.credit || 'unknown') + ', edited for the fight sim</span></p>').join('') + '</div>'
+        + '<div class="sec">FIGHTERS</div><div class="card">' + rigs.map((r) => '<p>' + esc(r.title) + ' &middot; <span class="mute">Pivot figure by ' + esc(r.credit || 'unknown') + ', edited for the fight sim</span></p>').join('')
+        + (typeof FORM_ART !== 'undefined' ? Object.values(FORM_ART).map((a) => '<p>' + esc(a.title) + ' &middot; <span class="mute">Art by ' + esc(a.credit) + ', cut out and mirrored</span></p>').join('') : '') + '</div>'
         + '<div class="sec">FONT</div>' + card('Silkscreen by Jason Kottke, SIL Open Font License 1.1.');
     }
   };
@@ -918,7 +977,8 @@
       + '<p>' + b('KATCHIN MONOLITH') + ' (top right) can be fought every 20 minutes. Use buffs from ITEMS and hold the disc on it. Every clear raises your level cap, pays rewards and opens new systems: Z-Fighters, the Workshop, Techniques, chests and more.</p>'
       + '<p>' + b('LOOT BULMA') + ' flies over now and then. Tap her plane for a prize, sometimes Rainbow Capsules.</p>'
       + '<p>' + b('ZENKAI') + ' (MENU, Power Level 20+): start the run over and come back stronger. Z-Fighters, Z points, items, chests and the permanent upgrades stay.</p>'
-      + '<p class="mute">Keyboard: 1-5 fire Techniques. No real money anywhere: Rainbow Capsules are earned in the game.</p></div>';
+      + '<p>' + b('KI BEAM') + ' (Monolith 9): flip HOLD to BEAM under the FORM button and your beam fires from the top of the screen through your finger. Drag it across lines of machines. It uses Ki.</p>'
+      + '<p class="mute">Keyboard: 1-5 fire Techniques, F transforms, B flips HOLD between disc and beam; right click fires the beam. No real money anywhere: Rainbow Capsules are earned in the game.</p></div>';
   }
   // choose your fighter: who stands in the HUD and powers up. Looks only; switch any time in Options.
   let pickNext = null;
@@ -957,11 +1017,11 @@
     const hp = G.monoHp(k) - (S.mono.dmg || 0), ar = G.monoArmor(S, k, C);
     const est = G.effDmg(C.power, ar) * C.spin * C.speed * C.monoTime;
     let h = '<h3>Katchin Monolith ' + (k + 1) + '</h3>'
-      + '<p>The hardest metal in the universe. Techniques bounce off it: only the disc and your Z-Fighters scratch it.</p>'
+      + '<p>The hardest metal in the universe. Techniques bounce off it: only the disc' + (G.has(S, 'beam') ? ', the Ki Beam' : '') + ' and your Z-Fighters scratch it.</p>'
       + '<div class="card kv num"><span>HP left</span><span>' + fmt(hp) + ' / ' + fmt(G.monoHp(k)) + (S.mono.dmg ? ' (' + Math.round(S.mono.best * 100) + '% CHIPPED)' : '') + '</span><span>Armor</span><span>' + fmt(ar) + '</span><span>Your Ki Power now</span><span>' + fmt(C.power) + '</span><span>Disc alone, ' + C.monoTime + 's</span><span>~' + fmt(est) + '</span></div>';
     if (!ready) h += '<p class="mute">Ready in ' + G.fmtTime((S.mono.readyAt - now) / 1000) + '.</p>';
     h += '<div class="sec">POP YOUR BUFFS</div>';
-    for (const id of ['weights', 'gravity', 'turbo', 'discap', 'chamber', 'radar', 'ritual', 'potara', 'fusion', 'water']) {
+    for (const id of ['weights', 'gravity', 'turbo', 'discap', 'chamber', 'radar', 'ritual', 'potara', 'fusion', 'water', 'kidrink']) {
       const I = G.ITEMS[id], n = S.items[id] || 0;
       if (!n && !I.buy) continue;
       h += '<div class="row"><div class="nm"><i class="gem" style="background:' + I.col + '"></i><span>' + I.name + ' x' + n + '</span>' + (S.buffs[id] ? '<span class="pill g">' + Math.ceil(S.buffs[id]) + 's</span>' : '') + '</div><div class="acts">'
