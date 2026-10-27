@@ -1,7 +1,11 @@
 DBZ IDLE HANDOFF (updated 2026-10-27, v0.3)
 
-LIVE: https://claude.ai/artifact/TPJgPWV98FzjPtZhsXhAyQ (private; share from the page's Share menu)
-GALLERY: https://claude.ai/artifact/PEYRj27UXoCtyhcwc2QkEt
+LIVE (v0.4+): https://tokentrevor-gitouttahere.github.io/DBZ-IDLE/  (GitHub Pages, main branch /docs)
+GALLERY: https://tokentrevor-gitouttahere.github.io/DBZ-IDLE/gallery.html
+REPO: https://github.com/tokentrevor-gitouttahere/DBZ-IDLE (public; assets/ craftpix packs are NOT in it, see .gitignore)
+  To publish: python tools/build.py (writes docs/), commit, git push. Pages rebuilds in about a minute.
+OLD (v0.3, claude.ai artifacts, not reachable from the owner's current account):
+  https://claude.ai/artifact/TPJgPWV98FzjPtZhsXhAyQ  gallery https://claude.ai/artifact/PEYRj27UXoCtyhcwc2QkEt
 
 BUILD
   python tools/build_sprites.py [--sheet out.png]   machines atlas -> src/gen_sprites.js (from assets/ zips + previews)
