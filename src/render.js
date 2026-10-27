@@ -122,7 +122,8 @@ const Render = (() => {
   const sortY = (list) => list.sort((p, q) => p[1] - q[1]);
   // a wrecked machine from this region, burnt dark, lying on a scorch mark
   function wreckAt(g, x, y, region, rnd) {
-    const m = G.MACHINES[Math.min(G.MACHINES.length - 1, region * 5 + Math.floor(rnd() * 5))];
+    const mine = G.MACHINES.filter((x) => x.region === region);
+    const m = mine[Math.floor(rnd() * mine.length)] || G.MACHINES[0];
     const F = frames(m);
     const img = F.death.length ? F.death[F.death.length - 1] : F.idle[0];
     g.fillStyle = 'rgba(0,0,0,0.35)';
@@ -232,7 +233,7 @@ const Render = (() => {
   };
 
   // ------------------------------------------------------------------ machines (atlas + variants)
-  const PAINT_HUE = { red: 2, blue: 218, yellow: 48, green: 128, purple: 278 };
+  const PAINT_HUE = { orange: 24, red: 2, blue: 218, yellow: 48, green: 128, purple: 278 };
   // a Red Ribbon badge and a flag, as tiny pixel stamps (. = clear)
   const BADGE = ['.rrrrrrr.', 'rwwrrwwrr', 'rwrwrwrwr', 'rwwrrwwrr', 'rwrwrwrwr', 'rwrwrwrwr', '.rrrrrrr.'];
   const FLAG = ['bbbbrrrrrr', 'bwbbwwwwww', 'bbbbrrrrrr', 'bwbbwwwwww', 'rrrrrrrrrr', 'wwwwwwwwww', 'rrrrrrrrrr'];
@@ -471,6 +472,8 @@ const Render = (() => {
         setTimeout(() => { flash = { col: '#d9f6ff', a: 0.6 }; shake = reduce ? 0 : 0.45; }, 600);
       } else if (e.id === 'kaio') { flash = { col: '#ff4a3a', a: 0.3 }; for (const [x, y] of e.nodes) fx.push({ k: 'ring', x, y, life: 0.5, age: 0, col: T.col, r: 12 }); }
       else if (e.id === 'smelt') { for (const [x, y] of e.nodes) { fx.push({ k: 'beam', x, y, life: 0.5, age: 0 }); fx.push({ k: 'ring', x, y, life: 0.45, age: 0, col: '#9fd8ff', r: 10 }); } }
+      else if (e.id === 'blast' || e.id === 'barrage') { for (const [x, y] of e.nodes) { fx.push({ k: 'blast', x, y, life: 0.3, age: 0, r: e.id === 'barrage' ? 9 : 6 }); fx.push({ k: 'ring', x, y, life: 0.35, age: 0, col: T.col, r: 10 }); } }
+      else if (e.id === 'cherry' || e.id === 'battery' || e.id === 'wish') { flash = { col: T.col, a: 0.25 }; fx.push({ k: 'ring', x: GW / 2, y: GH / 2, life: 0.6, age: 0, col: T.col, r: 50 }); }
       else if (e.id === 'hell') { for (let i = 0; i < 14; i++) fx.push({ k: 'orb', x: Math.random() * GW, y: Math.random() * GH * 0.7 + GH * 0.15, life: 1.2, age: -i * 0.05 }); }
       if (e.id !== 'spirit') shake = reduce ? 0 : 0.15;
     } else if (e.type === 'steal') {
@@ -503,6 +506,8 @@ const Render = (() => {
   function text(x, y, s, col, icon, life, big) { texts.push({ x, y, s, col, icon, age: 0, life: life || 0.9, big, vx: 0 }); }
   // damage numbers: white for the disc, gold and big for crits, red for super crits, companions in their ki colour
   function dmgNum(e) {
+    // a World 2 machine that only takes SUPER (or ULTRA) crits says so now and then
+    if (e.immune && t - armorNote > 1.2) { armorNote = t; text(e.x, e.y - 10, G.CRIT_TIERS[e.immune] + '+ ONLY', '#a8a49c'); return; }
     if (!(e.d > 0)) return;
     if (e.by === 'beam' && !e.crit && Math.random() < 0.6) return; // the beam hits 8 times a second: show some
     if (e.by === 'beam' && !reduce && Math.random() < 0.5) fx.push({ k: 'spark', x: e.x + (Math.random() - 0.5) * 6, y: e.y, vx: (Math.random() - 0.5) * 70, vy: -Math.random() * 60, life: 0.2, age: 0, col: Math.random() < 0.5 ? '#ffffff' : '#bfe8ff' });

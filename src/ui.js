@@ -54,8 +54,11 @@
     S = null;
     try { if (data && data.save) S = G.migrate(JSON.parse(data.save), now); } catch (e) { S = null; }
     if (!S) S = load(now);
+    let wiped = false;
+    try { const raw = localStorage.getItem(G.SAVE_KEY); wiped = !S && !!raw && (JSON.parse(raw).v || 0) < G.VERSION; } catch (e) { /* no storage */ }
     if (S) away = G.offline(S, (now - S.lastSave) / 1000);
     else { S = G.newState(now); fresh = true; }
+
     W = G.newWorld();
     C = G.calc(S);
     Render.init(cv);
@@ -68,7 +71,7 @@
     layout();
     window.addEventListener('resize', layout);
     // pick a fighter first (new games, and saves from before fighters existed), then the welcome or the away report
-    const next = () => { if (away && away.secs >= 60) showAway(away); else if (fresh) showHelp(true); else closeModal(); };
+    const next = () => { if (away && away.secs >= 60) showAway(away); else if (wiped) showModal('<h3>A fresh start</h3><p>DBZ Idle was rebuilt around Shminer&#39;s numbers: new machine HP, Zenkai, Monolith and alloy rules. Old saves can&#39;t carry over, so everyone starts again from floor 1.</p>' + helpHtml() + '<div class="acts"><button class="btn gold" data-act="mclose">START TRAINING</button></div>'); else if (fresh) showHelp(true); else closeModal(); };
     if (!S.fighter) showFighterPick(next);
     else next();
     // keep the splash up long enough to read its tip (tap it to skip)
@@ -143,7 +146,9 @@
     if (e.key === 'Escape') { if (modalOpen && !pickNext) closeModal(); else if (sheet) closeSheet(); }
     if (sheet || modalOpen) return;
     const n = +e.key;
-    if (n >= 1 && n <= G.TECH_KEYS.length) act('tech', { id: G.TECH_KEYS[n - 1] });
+    const ki = e.key === '0' ? 10 : n; // keys 1-9 and 0 fire the open Techniques in order
+    const open = G.TECH_KEYS.filter((k) => G.techOpen(S, k));
+    if (ki >= 1 && ki <= open.length) act('tech', { id: open[ki - 1] });
     if (e.key === 'f' || e.key === 'F') act('form');
     if (e.key === 'b' || e.key === 'B') act('weapon');
   });
@@ -210,14 +215,19 @@
     set('msN', fmt(S.chests.super));
     tog($('#mItem'), 'locked', !iOn); tog($('#mSuper'), 'locked', !sOn);
     tog($('#mItem'), 'ready', iOn && S.chests.item > 0); tog($('#mSuper'), 'ready', sOn && S.chests.super > 0);
+    // Freebie Pack: how many are banked and the time to the next
+    set('mfN', S.freebie.n + '/' + C.freebieBank);
+    set('mfT', S.freebie.n >= C.freebieBank ? 'FULL' : G.fmtTime((C.freebieEvery - S.freebie.p) / C.speed));
+    tog($('#mFree'), 'ready', S.freebie.n > 0);
     // techniques
     const techSig = G.TECH_KEYS.map((k) => (G.techOpen(S, k) ? 1 : 0)).join('') + (C.autoTech ? 'a' : '') + (W.mode === 'mono' ? 'm' : '');
     if (last.techSig !== techSig) { last.techSig = techSig; buildTechs(); }
+    // each Technique: charges / capacity, and a bar filling toward the next charge (Shminer bombs)
     for (const k of G.TECH_KEYS) {
       if (!G.techOpen(S, k)) continue;
-      const left = S.tcd[k] || 0, full = G.TECHS[k].cd * C.techCd;
-      set('tcv-' + k, (left > 0 ? (left / full) * 100 : 0).toFixed(1) + '%', 'h');
-      set('tct-' + k, left > 0 ? Math.ceil(left) + 's' : '');
+      const B = (S.bomb && S.bomb[k]) || { c: 0, t: 0 }, cd = G.TECHS[k].cd * C.techCd;
+      set('tcv-' + k, (B.c >= C.techCap ? 0 : 100 - Math.min(100, (B.t / cd) * 100)).toFixed(1) + '%', 'h');
+      set('tct-' + k, Math.floor(B.c) + (S.cherry && k !== 'cherry' ? '+' : ''));
     }
     const ab = document.getElementById('tAuto');
     if (ab) { tog(ab, 'on', S.autoTech); set('tAuto', S.autoTech ? 'AUTO ON' : 'AUTO'); }
@@ -250,9 +260,10 @@
     // floor panel
     const need = G.floorNeed(S, S.floor, C);
     set('flN', 'FLOOR ' + S.floor);
-    set('flR', G.REGIONS[G.regionOf(S.floor)].name.toUpperCase() + (G.canDescend(S, S.floor) || S.floor >= G.MAX_FLOOR ? '' : ' - BEAT MONOLITH ' + G.PLANETS[G.planetOf(S.floor) + 1].gate));
+    const ft = S.ftype || {};
+    set('flR', (ft.prism ? 'PRISMATIC ' : ft.galactic ? 'GALACTIC ' : ft.rainbow ? 'RAINBOW ' : '') + (ft.gold ? 'GOLDEN ' : '') + G.REGIONS[G.regionOf(S.floor)].name.toUpperCase() + (G.canDescend(S, S.floor) || S.floor >= G.MAX_FLOOR ? '' : ' - BEAT MONOLITH ' + G.PLANETS[G.planetOf(S.floor) + 1].gate));
     set('flB', Math.min(100, (S.floorKills / need) * 100).toFixed(1) + '%', 'w');
-    set('flK', S.floorKills + '/' + need + (S.maxFloor > S.floor ? '  BEST ' + S.maxFloor : ''));
+    set('flK', Math.floor(S.floorKills) + '/' + need + ' CLEARS' + (S.maxFloor > S.floor ? '  BEST ' + S.maxFloor : ''));
     tog($('#flStay'), 'on', S.stay);
     // buffs
     set('buffs', Object.keys(S.buffs).map((k) => '<span class="buff"><i style="background:' + G.ITEMS[k].col + '"></i>' + esc(G.ITEMS[k].name.split(' ').pop().toUpperCase()) + ' ' + Math.ceil(S.buffs[k]) + 's</span>').join(''), 'html');
@@ -262,11 +273,11 @@
       if (el && S.helpers[h.id]) el.style.width = Math.min(100, ((W.helperT[h.id] || 0) / G.helperStats(S, C, h).every) * 100) + '%';
     }
     // dots: something to buy
-    $('#dotDisc').hidden = !(G.UP_KEYS.some((k) => (S.up[k] || 0) < G.UPS[k].max && G.canAfford(S, G.upCost(k, S.up[k] || 0, S)))
+    $('#dotDisc').hidden = !(G.UP_KEYS.some((k) => G.upOpen(S, k) && (S.up[k] || 0) < G.upMax(S, k, C) && G.canAfford(S, G.upCost(k, S.up[k] || 0, S)))
       || (G.has(S, 'beam') && G.BEAM_KEYS.some((k) => (S.bup[k] || 0) < G.BEAM_UPS[k].max && G.canAfford(S, G.beamCost(k, S.bup[k] || 0, S)))));
     $('#dotItems').hidden = !((iOn && S.chests.item > 0) || (sOn && S.chests.super > 0));
     $('#dotCC').hidden = !(G.HELPERS.some((h) => G.has(S, 'companions') && S.mono.tier >= h.mono && !S.helpers[h.id] && S.zp + (S.zeni >= G.zpCost(S, 1) ? G.zpMax(S) : 0) >= h.hire));
-    $('#dotMenu').hidden = !(G.zenkaiGain(S) > 0 || (G.has(S, 'skills') && S.skillPts > 0 && G.SKILLS.some((s) => canSkill(s))) || G.ZK.some((z) => G.zkTierOpen(S, z.tier) && (S.zenkai.up[z.id] || 0) < z.max && S.zenkai.pts >= G.zkCost(z, S.zenkai.up[z.id] || 0)));
+    $('#dotMenu').hidden = !(G.zenkaiGain(S) > 0 || (G.has(S, 'skills') && S.skillPts > 0 && G.SKILLS.some((s) => canSkill(s))) || G.ZK.some((z) => G.zkTierOpen(S, z.tier) && G.zkUnlocked(S, z) && (S.zenkai.up[z.id] || 0) < z.max && S.zenkai.pts >= G.zkCost(z, S.zenkai.up[z.id] || 0)));
     const crewSig = G.HELPERS.map((h) => (S.helpers[h.id] ? 'h' : '') + (S.mono.tier >= h.mono ? 'u' : '')).join(',') + G.has(S, 'companions');
     if (last.crew !== crewSig) { last.crew = crewSig; buildCrew(); }
     const faceSig = (S.fighter || 'goku') + S.formOn;
@@ -280,11 +291,7 @@
     if (k === 0) return Math.round(f * 100) + '% CRIT';
     return 'all ' + T[Math.min(k, T.length - 1)] + (k + 1 < T.length && f > 0 ? ', ' + Math.round(f * 100) + '% ' + T[k + 1] : '');
   }
-  function canSkill(s) {
-    if ((S.skills[s.id] || 0) >= s.max || !G.skillRowOpen(S, s.row) || S.skillPts < s.cost) return false;
-    const p = G.skillParent(s);
-    return !p || S.skills[p.id] > 0;
-  }
+  const canSkill = (s) => G.skillReady(S, s);
 
   // the HUD portrait: your fighter, in the form you're in right now
   function paintFace() {
@@ -335,17 +342,17 @@
   }
   function buildTechs() {
     const el = $('#tpanel');
-    if (!G.has(S, 'techniques')) { el.innerHTML = '<span class="t">TECHNIQUES</span><span class="tlock">CLEAR<br>MONOLITH ' + G.unlockAt('techniques') + '</span>'; return; }
     let h = '<span class="t">TECHNIQUES</span>';
     for (const k of G.TECH_KEYS) {
       const T = G.TECHS[k];
       if (!G.techOpen(S, k)) continue;
       h += '<button class="btn tbtn" data-act="tech" data-id="' + k + '" aria-label="' + T.name + '"' + (W && W.mode === 'mono' ? ' disabled' : '') + '><i style="background:' + T.col + '"></i>' + T.short + '<span class="cdv" id="tcv-' + k + '"></span><span class="cdt" id="tct-' + k + '"></span></button>';
     }
-    const next = G.TECH_KEYS.find((k) => !G.techOpen(S, k));
-    if (next) h += '<span class="tlock">' + G.TECHS[next].short + '<br>M' + G.TECHS[next].mono + '</span>';
+    const next = G.TECH_KEYS.find((k) => !G.techOpen(S, k) && G.TECHS[k].ws);
+    if (next) { const w = G.WORKSHOP.find((x) => x.unlock === next); h += '<span class="tlock">' + G.TECHS[next].short + '<br>WORKSHOP</span>'; void w; }
     if (C && C.autoTech) h += '<button class="btn alt stay" id="tAuto" data-act="autoTech">AUTO</button>';
     el.innerHTML = h;
+    tog(el, 'many', G.TECH_KEYS.filter((k) => G.techOpen(S, k)).length > 4);
     for (const k of Object.keys(last)) if (k.startsWith('tc')) delete last[k];
     delete last.tAuto;
   }
@@ -379,7 +386,8 @@
     else if (e.type === 'zenkai') toast('ZENKAI! +' + e.gain + ' ZENKAI POINTS');
     else if (e.type === 'floor') {
       if (e.region) banner(e.region.name, 'FLOOR ' + e.floor);
-      else if (e.first && (e.floor - 1) % 2 === 0) { const m = G.MACHINES[Math.min(49, Math.floor((e.floor - 1) / 2))]; banner('FLOOR ' + e.floor, 'NEW: ' + m.name.toUpperCase()); }
+      else if (e.newMach != null) banner('FLOOR ' + e.floor, 'NEW: ' + G.MACHINES[e.newMach].name.toUpperCase());
+      if (e.ftype && (e.ftype.gold || e.ftype.rainbow)) toast((e.ftype.rainbow ? 'RAINBOW ' : '') + (e.ftype.gold ? 'GOLDEN ' : '') + 'FLOOR: x' + fmt(G.floorMult(S, C)) + ' PARTS');
     } else if (e.type === 'chest') { if (!last['chestToast' + e.kind] || Date.now() - last['chestToast' + e.kind] > 8000) { last['chestToast' + e.kind] = Date.now(); toast(e.kind === 'item' ? '+1 ITEM CHEST' : '+1 SUPER CHEST!'); } }
     else if (e.type === 'shout') shout(e.helper, e.text);
     else if (e.type === 'card') { const K = G.CARD[e.id]; banner('NEW CARD: ' + cardName(K), '+' + Math.round(G.CARD_PERK * 100) + '% ' + K.perk); }
@@ -387,6 +395,7 @@
     else if (e.type === 'form') { if (e.out) toast('OUT OF KI - BACK TO BASE FORM'); else if (e.tier) banner(G.formLook(S, e.tier).name, G.fighterOf(S).name.toUpperCase() + ' - x' + G.FORM_TIERS[e.tier].mult + ' DISC DAMAGE'); }
     else if (e.type === 'bulma') toast('LOOT BULMA IS FLYING BY - TAP HER PLANE!');
     else if (e.type === 'beamOut') toast('OUT OF KI - THE DISC TAKES OVER');
+    else if (e.type === 'freebie' && e.n === 1) toast('A FREEBIE PACK IS READY (LEFT, UNDER THE CHESTS)');
     else if (e.type === 'beamLow') { if (!last.beamLowT || Date.now() - last.beamLowT > 4000) { last.beamLowT = Date.now(); toast('THE BEAM NEEDS ' + G.TUNE.beamMinStart + ' KI - DISC FOR NOW'); } }
     else if (e.type === 'wish') { const w = G.WISHES.find((x) => x.id === e.id); toast('BUU WISH GRANTED: ' + w.name.toUpperCase() + ' - ' + w.reward.toUpperCase()); }
   }
@@ -456,8 +465,9 @@
       case 'close': closeSheet(); return;
       case 'back': { const p = sheetStack.pop(); if (p) openSheet(p, null, true); else closeSheet(); return; }
       case 'mclose': closeModal(); return;
-      case 'tech': if (!G.useTech(S, W, d.id)) toast(W.mode === 'mono' ? "TECHNIQUES DON'T WORK ON KATCHIN" : G.TECHS[d.id].name.toUpperCase() + ' IS RECHARGING'); break;
+      case 'tech': if (!G.useTech(S, W, d.id)) toast(W.mode === 'mono' ? "TECHNIQUES DON'T WORK ON KATCHIN" : 'NO ' + G.TECHS[d.id].name.toUpperCase() + ' CHARGES YET'); break;
       case 'autoTech': S.autoTech = !S.autoTech; break;
+      case 'freebie': { const g = G.claimFreebie(S, W); if (!g) { toast('NEXT FREEBIE PACK IN ' + G.fmtTime((C.freebieEvery - S.freebie.p) / C.speed)); return; } toast('FREEBIE: +' + g.caps + ' CAPSULES, +' + g.item + ' ITEM CHEST' + (g.super ? ', +' + g.super + ' SUPER CHEST' : '') + (g.bits ? ', +' + g.bits + ' SKILL BIT' : '') + (g.sp ? ' (+1 SKILL POINT!)' : '')); break; }
       case 'form':
         if (!G.formsOpenTop(S)) { toast('FORMS OPEN WITH MONOLITH ' + G.FORM_TIERS[1].mono); return; }
         if (!G.transform(S, W)) toast('NEED ' + G.TUNE.kiMinStart + ' KI TO TRANSFORM');
@@ -489,7 +499,7 @@
       case 'use': if (!G.useItem(S, W, d.id)) toast(d.id === 'senzu' ? 'NO TECHNIQUE IS RECHARGING' : d.id === 'kidrink' ? 'YOUR KI IS ALREADY FULL' : 'THAT BUFF IS ALREADY STACKED TO 20 MINUTES'); else toast(G.ITEMS[d.id].name.toUpperCase() + '!'); if (modalOpen) showMonoPrep(now); break;
       case 'buyItem': if (!G.buyItem(S, d.id, +d.n || 1)) toast('NOT ENOUGH ZENI'); if (modalOpen) showMonoPrep(now); break;
       case 'up': if (!G.buyUp(S, d.k)) toast('MISSING ZENI OR ALLOY'); break;
-      case 'ws': if (!G.buyWs(S, d.id)) toast('MISSING ZENI OR ALLOY'); break;
+      case 'ws': if (!G.buyWs(S, d.id)) toast('MISSING ALLOY'); else { const w = G.WORKSHOP.find((x) => x.id === d.id); if (w.unlock) toast('NEW TECHNIQUE: ' + G.TECHS[w.unlock].name.toUpperCase() + '!'); } break;
       case 'hire': if (!G.hire(S, d.id)) toast('NOT ENOUGH Z POINTS - BUY SOME ABOVE'); break;
       case 'cup': if (!G.upHelper(S, d.id, d.k)) toast('NOT ENOUGH Z POINTS - BUY SOME ABOVE'); break;
       case 'zpAmt': ui.zpAmt = d.v; break;
@@ -501,15 +511,16 @@
       case 'buyZp': { const got = G.buyZp(S, ui.zpAmt === 'max' ? G.zpMax(S) : +ui.zpAmt); if (got) toast('+' + fmt(got) + ' Z POINTS'); else toast('NOT ENOUGH ZENI'); break; }
       case 'store': if (!G.buyStore(S, d.id)) toast('NOT ENOUGH RAINBOW CAPSULES'); else toast(G.STORE.find((s) => s.id === d.id).name.toUpperCase() + '!'); break;
       case 'skill': ui.skill = d.id; break;
-      case 'buySkill': if (!G.buySkill(S, d.id)) toast('NEED MORE SKILL POINTS (OR THE NODE ABOVE)'); break;
+      case 'buySkill': if (!G.buySkill(S, d.id)) toast('NEED MORE SKILL POINTS, ITS MONOLITH, OR A SKILL IN THE ROW ABOVE'); break;
       case 'open': { const r = G.openChests(S, d.kind, d.n === 'all' ? 1e9 : +d.n); if (r) ui.lastLoot = r; break; }
       case 'labRegion': ui.labRegion = +d.r; break;
       case 'amt': ui.amt = d.v; break;
       case 'sell': { const z = G.sell(S, d.id, amount(S.parts[d.id] || 0)); if (z) toast('+' + fmt(z) + ' ZENI'); break; }
-      case 'refine': { const n = G.refine(S, d.id, amount(Math.floor((S.parts[d.id] || 0) / C.ratio))); if (n) toast('+' + fmt(n) + ' ' + G.MACH[d.id].part.toUpperCase() + ' ALLOY'); else toast('NEED ' + C.ratio + ' PARTS PER ALLOY'); break; }
+      case 'refine': { const n = G.refine(S, d.id, amount(Math.floor((S.parts[d.id] || 0) / G.ratioOf(G.MACH[d.id].t, C)))); if (n) toast('+' + fmt(n) + ' ' + G.MACH[d.id].part.toUpperCase() + ' ALLOY'); else toast('NEED ' + G.ratioOf(G.MACH[d.id].t, C) + ' PARTS PER ALLOY'); break; }
       case 'sellAll': { let z = 0; for (const m of regionMachines(ui.labRegion)) z += G.sell(S, m.id, S.parts[m.id] || 0); if (z) toast('+' + fmt(z) + ' ZENI'); break; }
       case 'refineAll': { let n = 0; for (const m of regionMachines(ui.labRegion)) n += G.refine(S, m.id, 1e15); if (n) toast('+' + fmt(n) + ' CAPSULE ALLOY'); break; }
       case 'zk': if (!G.buyZk(S, d.id)) toast('NOT ENOUGH ZENKAI POINTS'); break;
+      case 'zkUnlock': { const z = G.unlockZk(S, +d.t); if (z) toast('UNLOCKED: ' + z.name.toUpperCase()); else toast('NOT ENOUGH ZENKAI POINTS'); break; }
       case 'zenkaiAsk': showZenkaiConfirm(); return;
       case 'zenkaiGo': if (G.zenkai(S, W, now)) { closeModal(); openSheet('zenkai'); save(); } break;
       case 'ccTab': ui.ccTab = d.v; break;
@@ -527,10 +538,11 @@
     if (changed) { refreshSheet(true); if (!['amt', 'zpAmt', 'cardKind', 'labRegion', 'ccTab', 'monoTab', 'skill', 'goal', 'discTab'].includes(a)) save(); }
   }
   function amount(max) { return ui.amt === 'max' ? max : Math.min(max, +ui.amt); }
-  const regionMachines = (r) => G.MACHINES.slice(r * 5, r * 5 + 5);
+  const regionMachines = (r) => G.MACHINES.filter((m) => m.region === r);
+  const oreFloors = (m) => G.ORE_FLOORS[m.t][0] + '-' + G.ORE_FLOORS[m.t][1];
 
   // ------------------------------------------------------------------ sheets
-  const TITLES = { lab: "Bulma's Lab", disc: 'Upgrades', items: 'Capsule Items', chests: 'Chests', cc: 'Capsule Corp', menu: 'Menu', zenkai: 'Zenkai', stats: 'Scouter Stats', options: 'Options', cards: 'Cards', help: 'How To Play', credits: 'Credits', goals: 'Training Goals', mono: 'Katchin Monolith', skills: 'Skill Tree', wishes: 'Buu Wishes', bonuses: 'SUPER Bonuses' };
+  const TITLES = { lab: "Bulma's Lab", disc: 'Upgrades', items: 'Capsule Items', chests: 'Chests', cc: 'Capsule Corp', menu: 'Menu', zenkai: 'Zenkai', stats: 'Scouter Stats', options: 'Options', cards: 'Cards', help: 'How To Play', credits: 'Credits', goals: 'Training Goals', mono: 'Katchin Monolith', skills: 'Skill Tree', wishes: 'Buu Wishes', bonuses: 'Relics' };
   function openSheet(id, tab, isBack) {
     if (W.mode === 'mono' && id !== 'stats') { toast('FINISH THE MONOLITH FIGHT FIRST'); return; }
     if (id === 'lab' && sheet !== 'lab') ui.labRegion = G.regionOf(S.floor);
@@ -567,23 +579,27 @@
   const card = (html, mute) => '<div class="card' + (mute ? ' mute' : '') + '" style="padding:7px 9px">' + html + '</div>';
   const lockline = (n, what) => '<div class="lockline">' + esc(what) + ' OPENS WHEN YOU CLEAR KATCHIN MONOLITH ' + n + '</div>';
   function costChips(cost) {
-    let h = zeni(cost.zeni, S.zeni < cost.zeni);
+    let h = cost.zeni ? zeni(cost.zeni, S.zeni < cost.zeni) : '';
     for (const [id, n] of cost.alloy) {
       const m = G.MACH[id];
       if (!G.partReachable(S, id)) h += '<span class="short"><i class="ingot"></i>' + esc(m.part) + ' (NAMEK)</span>';
-      else h += '<span class="' + ((S.alloy[id] || 0) < n ? 'short' : '') + '" title="' + esc(m.part) + ' alloy - floors ' + (2 * m.t + 1) + '-' + (2 * m.t + 6) + '"><i class="ingot" style="background:' + m.col + '"></i>' + fmt(S.alloy[id] || 0) + '/' + fmt(n) + ' ' + esc(m.part) + '</span>';
+      else h += '<span class="' + ((S.alloy[id] || 0) < n ? 'short' : '') + '" title="' + esc(m.part) + ' alloy - floors ' + oreFloors(m) + '"><i class="ingot" style="background:' + m.col + '"></i>' + fmt(S.alloy[id] || 0) + '/' + fmt(n) + ' ' + esc(m.part) + '</span>';
     }
     return h;
   }
+  // one bonus amount as text: "+12%", "-3 alloy", "x1.10", "+2 levels"
+  function fxText(k, v, neg) {
+    if (k === 'upCap') return '+' + v + ' level' + (v === 1 ? '' : 's') + ' on every cap';
+    if (k === 'alloyMinus') return '-' + v + ' alloy per upgrade cost';
+    if (k === 'chestPct' && v >= 1) return '+' + Math.round(v * 100) + '% chest meters';
+    if (/M\d+$/.test(k)) return 'x' + (1 + v).toFixed(2);
+    const pct = Math.abs(v) < 10 ? +(v * 100).toFixed(1) + '%' : String(v);
+    return ((neg || /monoArmorPct|floorReqPct|upZeniPct|monoCdPct/.test(k)) ? '-' : '+') + pct;
+  }
   function upEffect(k) {
-    const l = S.up[k] || 0;
-    const base = Object.assign({}, S, { buffs: {} });
-    const a = G.calc(base), b = G.calc(Object.assign({}, base, { up: Object.assign({}, S.up, { [k]: l + 1 }) }));
-    const f = {
-      power: (c) => fmt(c.basePower), spin: (c) => c.spin.toFixed(1) + '/s', size: (c) => c.radius.toFixed(1), crit: (c) => Math.round(c.crit * 100) + '%' + (c.crit > 1 ? ' (' + critText(c.crit) + ')' : ''),
-      field: (c) => String(c.maxNodes), beacon: (c) => c.spawn.toFixed(2) + 's', value: (c) => 'x' + c.valueMult.toFixed(2), refine: (c) => c.ratio + ' parts'
-    }[k];
-    return [f(a), f(b)];
+    const U = G.UPS[k], l = S.up[k] || 0;
+    if (k === 'power') return [fmt(G.pickDmg(l) * G.TUNE.discK), fmt(G.pickDmg(l + 1) * G.TUNE.discK)];
+    return [fxText(U.fx, U.step * l), fxText(U.fx, U.step * (l + 1))];
   }
 
   // the KI BEAM tab: how it works, which look it fires as, and its upgrades (reset by Zenkai, like the disc's)
@@ -642,7 +658,7 @@
     const o = G.ctCurrent(S), m = G.MACH[o.id], have = S.alloy[o.id] || 0, now = Date.now();
     let h = card('Bulma needs Capsule Alloy. Every order you fill pays Contract Points for the upgrades below, and the next order asks for more. Contract Points and these upgrades reset on Zenkai; the CONTRACTS row in the Zenkai upgrades is permanent.', true);
     h += '<div class="card ctord"><div class="ctord-t"><span>BULMA\'S ORDER #' + (S.ct.done + 1) + '</span><b class="num">' + fmt(S.ct.pts) + ' CP</b></div>'
-      + '<div class="ctord-b">' + mthumb(o.id, 32) + '<div><div class="nm"><span>' + esc(m.part) + ' Alloy</span></div><div class="sub num"><i class="ingot" style="background:' + m.col + '"></i> ' + fmt(have) + ' / ' + fmt(o.n) + ' &middot; floors ' + (2 * m.t + 1) + '-' + (2 * m.t + 6) + '</div><div class="bar"><i style="width:' + Math.min(100, (have / o.n) * 100).toFixed(1) + '%"></i></div></div></div>'
+      + '<div class="ctord-b">' + mthumb(o.id, 32) + '<div><div class="nm"><span>' + esc(m.part) + ' Alloy</span></div><div class="sub num"><i class="ingot" style="background:' + m.col + '"></i> ' + fmt(have) + ' / ' + fmt(o.n) + ' &middot; floors ' + oreFloors(m) + '</div><div class="bar"><i style="width:' + Math.min(100, (have / o.n) * 100).toFixed(1) + '%"></i></div></div></div>'
       + '<div class="tabs"><button class="btn gold" data-act="ctDeliver"' + (have >= o.n ? '' : ' disabled') + '>DELIVER</button><button class="btn alt" data-act="ctReroll"' + (now >= S.ct.rerollAt ? '' : ' disabled') + '>' + (now >= S.ct.rerollAt ? 'NEW ORDER' : 'NEW ORDER ' + Math.ceil((S.ct.rerollAt - now) / 1000) + 's') + '</button></div>'
       + '<p class="mute">Done this run: ' + S.ct.done + '. Base pay 10 CP (Zenkai boosters add more and roll 2x / 3x / 5x / 10x).</p></div>';
     let lastMono = 0;
@@ -659,16 +675,16 @@
     lab() {
       const top = G.regionOf(S.maxFloor);
       let h = '<div class="tabs">';
-      for (let r = 0; r <= Math.max(top, G.regionOf(S.floor)); r++) h += '<button class="btn ' + (r === ui.labRegion ? 'gold' : 'alt') + '" data-act="labRegion" data-r="' + r + '">' + (r * 10 + 1) + '-' + (r * 10 + 10) + '</button>';
-      h += '</div>' + card('Sell parts for Zeni, or refine ' + C.ratio + ' parts into 1 Capsule Alloy. Upgrades need alloy. Each part only drops on the floors its machine shows up on: <b style="color:var(--text)">double-tap a machine</b> to go to the floor it shows up on most.', true);
+      for (let r = 0; r <= Math.max(top, G.regionOf(S.floor)); r++) h += '<button class="btn ' + (r === ui.labRegion ? 'gold' : 'alt') + '" data-act="labRegion" data-r="' + r + '">' + G.REGION_FLOORS[r][0] + '-' + G.REGION_FLOORS[r][1] + '</button>';
+      h += '</div>' + card('Sell parts for Zeni, or refine them into Capsule Alloy (deeper machines need more parts per alloy). Upgrades need alloy. Each part only drops on the floors its machine shows up on: <b style="color:var(--text)">double-tap a machine</b> to go to the floor it shows up on most.', true);
       h += '<div class="sec">' + G.REGIONS[ui.labRegion].name.toUpperCase() + '</div>';
       for (const m of regionMachines(ui.labRegion)) {
         const seen = S.seen[m.id];
         const p = S.parts[m.id] || 0, al = S.alloy[m.id] || 0;
-        const val = Math.round(G.partValue(m.t) * C.valueMult);
-        const sn = amount(p), rn = amount(Math.floor(p / C.ratio));
+        const val = G.partValue(m.t) * C.valueMult;
+        const ratio = G.ratioOf(m.t, C), sn = amount(p), rn = amount(Math.floor(p / ratio));
         h += '<div class="row' + (seen ? '' : ' dim') + '" data-goto="' + m.id + '" title="Double-tap to go farm it"><div style="display:flex;gap:8px;align-items:center;min-width:0">' + (seen ? mthumb(m.id) : '<span class="thumb"></span>') + '<div style="min-width:0"><div class="nm"><span>' + (seen ? esc(m.part) : '???') + '</span></div>'
-          + '<div class="sub num">' + (seen ? esc(m.name) + ' &middot; ' : '') + 'FLOORS ' + (2 * m.t + 1) + '-' + Math.min(G.MAX_FLOOR, 2 * m.t + 6) + '</div><div class="sub num">PARTS ' + fmt(p) + ' &nbsp; <i class="ingot" style="background:' + m.col + '"></i> ' + fmt(al) + ' &nbsp; ' + fmt(val) + ' Z EACH</div></div></div>'
+          + '<div class="sub num">' + (seen ? esc(m.name) + ' &middot; ' : '') + 'FLOORS ' + oreFloors(m) + (G.MODS[m.t] ? ' &middot; ' + esc(G.MODS[m.t].txt.toUpperCase()) : '') + '</div><div class="sub num">PARTS ' + fmt(p) + ' &nbsp; <i class="ingot" style="background:' + m.col + '"></i> ' + fmt(al) + ' &nbsp; ' + fmt(val) + ' Z EACH</div></div></div>'
           + '<div class="acts"><button class="btn go" data-act="sell" data-id="' + m.id + '"' + (sn ? '' : ' disabled') + '>SELL ' + fmt(sn) + '</button><button class="btn" data-act="refine" data-id="' + m.id + '"' + (rn ? '' : ' disabled') + '>REFINE ' + fmt(rn) + '</button></div></div>';
       }
       h += '<div class="tabs" style="justify-content:space-between"><div class="tabs">' + ['1', '10', '100', 'max'].map((v) => '<button class="btn ' + (ui.amt === v ? 'gold' : 'alt') + '" data-act="amt" data-v="' + v + '">' + (v === 'max' ? 'MAX' : v + 'X') + '</button>').join('') + '</div>'
@@ -679,20 +695,22 @@
       const bOn = G.has(S, 'beam');
       let h = '<div class="tabs"><button class="btn ' + (ui.discTab !== 'beam' ? 'gold' : 'alt') + '" data-act="discTab" data-v="disc">DESTRUCTO DISC</button><button class="btn ' + (ui.discTab === 'beam' ? 'gold' : 'alt') + '" data-act="discTab" data-v="beam">KI BEAM' + (bOn ? '' : ' (M' + G.unlockAt('beam') + ')') + '</button></div>';
       if (ui.discTab === 'beam') return h + (bOn ? beamHtml() : lockline(G.unlockAt('beam'), 'THE KI BEAM'));
-      h += card('Ki Power ' + fmt(C.basePower) + ' &middot; ' + C.spin.toFixed(1) + ' hits/s &middot; radius ' + C.radius.toFixed(1) + ' &middot; crit ' + Math.round(C.crit * 100) + '%. These reset on Zenkai. Higher levels need alloy from deeper machines, and every third level an older part: go back up and farm it.', true);
+      h += card('Ki Power ' + fmt(C.basePower) + ' &middot; ' + C.spin.toFixed(1) + ' hits/s &middot; radius ' + C.radius.toFixed(1) + ' &middot; crit ' + Math.round(C.crit * 100) + '%' + (C.superCh ? ' &middot; SUPER ' + Math.round(C.superCh * 100) + '%' : '') + '. New upgrades open as your Power Level grows. They all reset on Zenkai.', true);
+      let shown = 0;
       for (const k of G.UP_KEYS) {
-        const U = G.UPS[k], l = S.up[k] || 0, maxed = l >= U.max;
-        const cost = maxed ? null : G.upCost(k, l, S);
+        const U = G.UPS[k], l = S.up[k] || 0, mx = G.upMax(S, k, C), maxed = l >= mx, open = G.upOpen(S, k);
+        if (!open && shown++ >= 1) continue; // only the next locked one is shown
+        const cost = maxed || !open ? null : G.upCost(k, l, S);
         const [a, b] = upEffect(k);
-        h += '<div class="row"><div><div class="nm"><span>' + U.name + '</span><span class="pill num">' + l + '/' + U.max + '</span></div><div class="sub">' + U.desc + ': <b style="color:var(--text)">' + a + '</b>' + (maxed ? '' : ' &gt; <b style="color:var(--gold)">' + b + '</b>') + '</div></div>'
-          + '<div class="acts">' + (maxed ? '<span class="pill g">MAXED</span>' : '<button class="btn" data-act="up" data-k="' + k + '"' + (G.canAfford(S, cost) ? '' : ' disabled') + '>BUY</button>') + '</div>'
-          + (maxed ? '' : '<div class="cost">' + costChips(cost) + '</div>') + '</div>';
+        h += '<div class="row' + (open ? '' : ' dim') + '"><div><div class="nm"><span>' + esc(U.name) + '</span><span class="pill num">' + l + '/' + mx + '</span></div><div class="sub">' + (k === 'power' ? 'Disc hit damage' : 'Per level ' + fxText(U.fx, U.step)) + ': <b style="color:var(--text)">' + a + '</b>' + (maxed ? '' : ' &gt; <b style="color:var(--gold)">' + b + '</b>') + '</div></div>'
+          + '<div class="acts">' + (!open ? '<span class="pill">POWER LEVEL ' + U.req + '</span>' : maxed ? '<span class="pill g">MAXED</span>' : '<button class="btn" data-act="up" data-k="' + k + '"' + (G.canAfford(S, cost) ? '' : ' disabled') + '>BUY</button>') + '</div>'
+          + (maxed || !open ? '' : '<div class="cost">' + costChips(cost) + '</div>') + '</div>';
       }
       return h;
     },
     items() {
       let h = '<div class="tabs"><button class="btn gold" data-act="sheet" data-id="chests">OPEN CHESTS (' + fmt(S.chests.item) + ' / ' + fmt(S.chests.super) + ')</button></div>';
-      h += card('Items come from Item chests and never reset. Buffs of one kind don\'t stack (the strongest applies); different kinds do. The commons can also be bought.', true);
+      h += card('Items come from Item chests (and Monolith rewards) and never reset. Using one again adds to its time; different items stack. Chest odds: green 16%, blue 10%, purple 4.6%, gold 2.6%, red 0.2%.', true);
       for (let r = 0; r < 5; r++) {
         const ids = G.ITEM_KEYS.filter((k) => G.ITEMS[k].r === r);
         h += '<div class="sec"><span class="rar' + r + '">' + G.RARITIES[r].name.toUpperCase() + '</span></div>';
@@ -701,7 +719,7 @@
           const on = S.buffs[id] ? ' <span class="pill g">' + Math.ceil(S.buffs[id]) + 's</span>' : '';
           h += '<div class="row"><div><div class="nm"><i class="gem" style="background:' + I.col + '"></i><span>' + I.name + '</span><span class="pill num">x' + n + '</span>' + on + '</div><div class="sub">' + I.desc + '</div></div>'
             + '<div class="acts"><button class="btn go" data-act="use" data-id="' + id + '"' + (n ? '' : ' disabled') + '>USE</button>'
-            + (I.buy ? '<button class="btn alt" data-act="buyItem" data-id="' + id + '" data-n="1"' + (S.zeni >= G.itemPrice(S, id) ? '' : ' disabled') + '>' + fmt(G.itemPrice(S, id)) + ' Z</button>' : '') + '</div></div>';
+            + '</div></div>';
         }
       }
       return h;
@@ -711,7 +729,7 @@
       const opener = (kind, n) => '<div class="tabs">' + ['1', '10', '100', 'all'].map((v) => '<button class="btn ' + (v === 'all' ? 'gold' : 'alt') + '" data-act="open" data-kind="' + kind + '" data-n="' + v + '"' + (n ? '' : ' disabled') + '>' + (v === 'all' ? 'ALL' : v) + '</button>').join('') + '</div>';
       let h = card('Chest meters fill as you damage machines (Z-Fighters count too). Monolith clears and Loot Bulma give chests as well.', true);
       h += '<div class="card chestc"><canvas width="32" height="32" data-tile="icon_chest:0"></canvas><div><div class="nm" style="font-size:11px">ITEM CHESTS &middot; ' + fmt(S.chests.item) + '</div><div class="sub">' + (iOn ? 'Meter ' + Math.floor(S.meter.item * 100) + '%. Each holds 1 item (' + G.RARITIES.map((r, i) => '<span class="rar' + i + '">' + G.ITEM_W[i] + '%</span>').join(' ') + ').' : 'Opens at Monolith ' + G.unlockAt('itemChests') + '.') + '</div>' + (iOn ? opener('item', S.chests.item) : '') + '</div></div>';
-      h += '<div class="card chestc"><canvas width="32" height="32" data-tile="icon_chest:0" style="filter:hue-rotate(250deg) saturate(1.6)"></canvas><div><div class="nm" style="font-size:11px">SUPER CHESTS &middot; ' + fmt(S.chests.super) + '</div><div class="sub">' + (sOn ? 'Meter ' + Math.floor(S.meter.super * 100) + '%. Each rolls a permanent bonus (' + G.RARITIES.map((r, i) => '<span class="rar' + i + '">' + r.w + '%</span>').join(' ') + ') and 1-3 Rainbow Capsules.' : 'Opens at Monolith ' + G.unlockAt('superChests') + '.') + '</div>' + (sOn ? opener('super', S.chests.super) : '') + '</div></div>';
+      h += '<div class="card chestc"><canvas width="32" height="32" data-tile="icon_chest:0" style="filter:hue-rotate(250deg) saturate(1.6)"></canvas><div><div class="nm" style="font-size:11px">SUPER CHESTS &middot; ' + fmt(S.chests.super) + '</div><div class="sub">' + (sOn ? 'Meter ' + Math.floor(S.meter.super * 100) + '%. Each gives one relic, a permanent bonus (' + G.RARITIES.map((r, i) => '<span class="rar' + i + '">' + r.w + '%</span>').join(' ') + ').' : 'Opens at Monolith ' + G.unlockAt('superChests') + '.') + '</div>' + (sOn ? opener('super', S.chests.super) : '') + '</div></div>';
       if (ui.lastLoot) {
         const L = ui.lastLoot;
         h += '<div class="sec">YOU GOT (' + L.n + ' ' + (L.kind === 'item' ? 'ITEM' : 'SUPER') + ' CHEST' + (L.n > 1 ? 'S' : '') + ')</div><div class="card loot">';
@@ -723,14 +741,17 @@
         if (L.caps) h += '<span>' + capico + ' +' + L.caps + ' Rainbow Capsules</span>';
         h += '</div>';
       }
-      if (sOn) h += '<div class="tabs"><button class="btn alt" data-act="sheet" data-id="bonuses">YOUR SUPER BONUSES</button></div>';
+      if (sOn) h += '<div class="tabs"><button class="btn alt" data-act="sheet" data-id="bonuses">YOUR RELICS</button></div>';
       return h;
     },
     bonuses() {
-      let h = card('Every SUPER chest adds a stack to one of these. They never reset.', true);
-      for (let r = 0; r < 5; r++) {
+      let h = card('Every SUPER chest gives one relic of a random rarity: a stack of one of these. Relics never reset. Some only start dropping once you have opened enough of that rarity.', true);
+      for (let r = 0; r < G.RARITIES.length; r++) {
         h += '<div class="sec"><span class="rar' + r + '">' + G.RARITIES[r].name.toUpperCase() + ' &middot; ' + G.RARITIES[r].w + '%</span></div>';
-        for (const s of G.SUPER.filter((x) => x.r === r)) h += '<div class="row"><div class="nm"><span class="rar' + r + '">' + s.name + '</span></div><div class="num">x' + (S.sup[s.id] || 0) + (s.max < 1000 ? '/' + s.max : '') + '</div></div>';
+        for (const s of G.SUPER.filter((x) => x.r === r)) {
+          const lock = s.need && !G.relicOpen(S, s) && !(S.sup[s.id] >= s.max);
+          h += '<div class="row' + (lock ? ' dim' : '') + '"><div class="nm"><span class="rar' + r + '">' + s.name + '</span>' + (lock ? '<span class="pill">' + s.need[0] + ' ' + G.RARITIES[r].name.toUpperCase() + (s.need[1] ? ', M' + s.need[1] : '') + '</span>' : '') + '</div><div class="num">x' + (S.sup[s.id] || 0) + (s.max < 1e9 ? '/' + s.max : '') + '</div></div>';
+        }
       }
       return h;
     },
@@ -766,15 +787,18 @@
         }
       } else if (ui.ccTab === 'ws') {
         if (!G.has(S, 'workshop')) return h + lockline(G.unlockAt('workshop'), 'THE WORKSHOP');
-        h += card('Permanent upgrades: they survive Zenkai. Paid with Zeni and alloy.', true);
-        for (const tier of [1, 2]) {
-          h += '<div class="sec">' + (tier === 1 ? 'WORKSHOP' : 'WORKSHOP II') + '</div>';
-          if (tier === 2 && !G.has(S, 'workshop2')) { h += lockline(G.unlockAt('workshop2'), 'WORKSHOP II'); continue; }
-          for (const w of G.WORKSHOP.filter((x) => x.tier === tier)) {
-            const l = S.ws[w.id] || 0, maxed = l >= w.max, cost = maxed ? null : G.wsCost(w, l);
-            h += '<div class="row"><div><div class="nm"><span>' + w.name + '</span><span class="pill num">' + l + '/' + w.max + '</span></div><div class="sub">' + w.desc + '</div></div>'
-              + '<div class="acts">' + (maxed ? '<span class="pill g">MAXED</span>' : '<button class="btn" data-act="ws" data-id="' + w.id + '"' + (G.canAfford(S, cost) ? '' : ' disabled') + '>BUY</button>') + '</div>'
-              + (maxed ? '' : '<div class="cost">' + costChips(cost) + '</div>') + '</div>';
+        h += card('Permanent upgrades: they survive Zenkai. Paid in Capsule Alloy (three kinds each, x1.3 a level). New rows open with Monolith clears; some unlock Techniques.', true);
+        const groups = [['WORKSHOP', (w) => !w.ki && w.tier !== 2], ['WORLD 2 (MONOLITH 19)', (w) => w.tier === 2], ['KI (FORMS AND THE KI BEAM)', (w) => w.ki]];
+        for (const [title, pick] of groups) {
+          h += '<div class="sec">' + title + '</div>';
+          let shownLocked = 0;
+          for (const w of G.WORKSHOP.filter(pick)) {
+            const l = S.ws[w.id] || 0, mx = G.wsMax(S, w, C), maxed = l >= mx, open = G.wsOpen(S, w);
+            if (!open && shownLocked++ >= 1) continue; // only the next locked row is shown
+            const cost = maxed || !open ? null : G.wsCost(w, l);
+            h += '<div class="row' + (open ? '' : ' dim') + '"><div><div class="nm"><span>' + esc(w.name) + '</span>' + (w.max > 1 ? '<span class="pill num">' + l + '/' + mx + '</span>' : '') + '</div><div class="sub">' + esc(w.desc) + '</div></div>'
+              + '<div class="acts">' + (!open ? '<span class="pill">MONOLITH ' + w.mono + '</span>' : maxed ? '<span class="pill g">' + (w.max === 1 ? 'UNLOCKED' : 'MAXED') + '</span>' : '<button class="btn" data-act="ws" data-id="' + w.id + '"' + (G.canAfford(S, cost) ? '' : ' disabled') + '>' + (w.unlock ? 'UNLOCK' : 'BUY') + '</button>') + '</div>'
+              + (maxed || !open ? '' : '<div class="cost">' + costChips(cost) + '</div>') + '</div>';
           }
         }
       } else if (ui.ccTab === 'ct') {
@@ -782,7 +806,7 @@
         h += contractsHtml();
       } else {
         if (!G.has(S, 'store')) return h + lockline(G.unlockAt('store'), 'THE CAPSULE STORE');
-        h += card('Rainbow Capsules come from SUPER chests, Monolith clears, Loot Bulma and Kaio-ken. You have ' + capico + ' <b>' + fmt(S.caps) + '</b>. They are only ever earned in the game.', true);
+        h += card('Rainbow Capsules come from Freebie Packs (the FREE button on the left, every 10 minutes), Monolith clears, Loot Bulma and Kaio-ken. You have ' + capico + ' <b>' + fmt(S.caps) + '</b>. They are only ever earned in the game: nothing here costs real money.', true);
         for (const s of G.STORE) {
           const l = S.store[s.id] || 0, maxed = s.max && l >= s.max, lock = s.need && !G.has(S, s.need);
           h += '<div class="row' + (lock ? ' dim' : '') + '"><div><div class="nm"><span>' + s.name + '</span>' + (s.max ? '<span class="pill num">' + l + '/' + s.max + '</span>' : '') + '</div><div class="sub">' + s.desc + '</div></div>'
@@ -811,7 +835,7 @@
       let h = '<div class="tabs"><button class="btn ' + (ui.monoTab === 'next' ? 'gold' : 'alt') + '" data-act="monoTab" data-v="next">NEXT FIGHT</button><button class="btn ' + (ui.monoTab === 'rewards' ? 'gold' : 'alt') + '" data-act="monoTab" data-v="rewards">REWARDS</button><button class="btn ' + (ui.monoTab === 'unlocks' ? 'gold' : 'alt') + '" data-act="monoTab" data-v="unlocks">UNLOCKS</button></div>';
       const rew = (n) => {
         const R = G.monoReward(n);
-        let s = '<span>' + capico + ' ' + R.caps + '</span><span>ITEM CHEST x' + R.itemChests + '</span>';
+        let s = '<span>' + capico + ' ' + R.caps + '</span>' + (R.itemChests ? '<span>ITEM CHEST x' + R.itemChests + '</span>' : '');
         if (R.superChests) s += '<span class="rar2">SUPER CHEST x' + R.superChests + '</span>';
         if (R.skillPts) s += '<span class="rar3">SKILL POINT x' + R.skillPts + '</span>';
         s += '<span>LEVEL CAP +' + R.cap + '</span>';
@@ -819,6 +843,9 @@
         for (const hh of R.helpers) s += '<span class="rar1">NEW Z-FIGHTER: ' + G.helperView(S, hh).name.toUpperCase() + '</span>';
         for (const t of R.techs) s += '<span class="rar1">NEW TECHNIQUE: ' + G.TECHS[t].name.toUpperCase() + '</span>';
         if (R.skillRow) s += '<span class="rar3">SKILL TREE ROW ' + R.skillRow + '</span>';
+        if (R.perk) s += '<span class="rar4">' + esc(R.perk.toUpperCase()) + '</span>';
+        if (R.mythic) s += '<span class="rar4">MYTHIC RELIC x' + R.mythic + '</span>';
+        if (R.divine) s += '<span class="rar5">DIVINE RELIC x' + R.divine + '</span>';
         return s;
       };
       if (ui.monoTab === 'next') {
@@ -839,23 +866,23 @@
     skills() {
       if (!G.has(S, 'skills')) return lockline(G.unlockAt('skills'), 'THE SKILL TREE');
       let h = '<div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:7px 9px"><span>SKILL POINTS</span><b class="big num" style="color:#ff8fd0">' + S.skillPts + '</b></div>';
-      h += '<div class="tree">' + G.BRANCHES.map((b) => '<div class="tcol-h">' + b + '</div>').join('');
-      for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < G.BRANCHES.length; c++) {
+      // Shminer's tree, row by row: a skill needs any skill in the row above, and its Monolith
+      h += '<div class="tree">';
+      for (let r = 0; r < G.SKILL_ROWS_N; r++) {
+        for (let c = 0; c < 4; c++) {
           const s = G.SKILLS.find((x) => x.col === c && x.row === r);
-          if (!s) { h += '<span></span>'; continue; } // the BEAM branch starts lower down
-          const l = S.skills[s.id] || 0;
-          const open = G.skillRowOpen(S, r);
-          const cls = ['node', 'r' + r, G.skillParent(s) ? '' : 'root', open ? '' : 'locked', l >= s.max ? 'maxed' : canSkill(s) ? 'avail' : '', ui.skill === s.id ? 'sel' : ''].join(' ');
-          h += '<button class="' + cls + '" data-act="skill" data-id="' + s.id + '"><span>' + esc(s.name) + '</span><span class="lvn">' + (open ? l + '/' + s.max : 'M' + G.skillRowAt(r)) + '</span></button>';
+          if (!s) { h += '<span></span>'; continue; }
+          const own = S.skills[s.id] > 0, open = S.mono.tier >= s.mono, linked = G.skillLinked(S, s);
+          const cls = ['node', 'r' + r, 'root', open && linked ? '' : 'locked', own ? 'maxed' : canSkill(s) ? 'avail' : '', ui.skill === s.id ? 'sel' : ''].join(' ');
+          h += '<button class="' + cls + '" data-act="skill" data-id="' + s.id + '"><span>' + esc(s.name) + '</span><span class="lvn">' + (own ? 'LEARNED' : !open ? 'M' + s.mono : s.cost + ' SP') + '</span></button>';
         }
       }
       h += '</div>';
       const s = ui.skill && G.SKILLBY[ui.skill];
       if (s) {
-        const l = S.skills[s.id] || 0;
-        h += '<div class="row"><div><div class="nm"><span style="color:var(--gold)">' + esc(s.name) + '</span><span class="pill num">' + l + '/' + s.max + '</span></div><div class="sub">' + esc(s.desc) + ' per level. Costs ' + s.cost + ' point' + (s.cost > 1 ? 's' : '') + '.' + (G.skillRowOpen(S, s.row) ? '' : ' Opens at Monolith ' + G.skillRowAt(s.row) + '.') + '</div></div><div class="acts">' + (l >= s.max ? '<span class="pill g">MAXED</span>' : '<button class="btn" data-act="buySkill" data-id="' + s.id + '"' + (canSkill(s) ? '' : ' disabled') + '>LEARN</button>') + '</div></div>';
-      } else h += card('Tap a node to see what it does. Skill Points come from Monolith clears (from Monolith 3) and the Capsule Store. A new row opens every 2 Monoliths.', true);
+        const own = S.skills[s.id] > 0;
+        h += '<div class="row"><div><div class="nm"><span style="color:var(--gold)">' + esc(s.name) + '</span></div><div class="sub">' + esc(s.desc) + '. Costs ' + s.cost + ' Skill Point' + (s.cost > 1 ? 's' : '') + '.' + (S.mono.tier >= s.mono ? '' : ' Opens at Monolith ' + s.mono + '.') + (G.skillLinked(S, s) ? '' : ' Learn a skill in the row above first.') + '</div></div><div class="acts">' + (own ? '<span class="pill g">LEARNED</span>' : '<button class="btn" data-act="buySkill" data-id="' + s.id + '"' + (canSkill(s) ? '' : ' disabled') + '>LEARN</button>') + '</div></div>';
+      } else h += card('Tap a skill to see what it does. Skill Points come from Monolith clears, Freebie Pack Skill Bits (10 = 1 point) and the Capsule Store. Each skill needs one in the row above it.', true);
       return h;
     },
     wishes() {
@@ -870,18 +897,24 @@
     },
     zenkai() {
       const g = G.zenkaiGain(S);
-      let h = '<div class="card"><div class="zk-top"><div><p>Earn Zenkai Points at Power Level ' + G.TUNE.zenkaiLevel + '+. More levels, more Monoliths and deeper floors all give more.</p><p class="mute">Resets: level, Zeni, parts, alloy, floors and Disc upgrades. Keeps: Monolith clears, Z-Fighters, Z points, items, chests, SUPER bonuses, Workshop, Store, Skill Tree, Buu Wishes and Zenkai upgrades.</p></div>'
-        + '<div style="text-align:center"><div class="big num">+' + g + '</div><button class="btn gold" data-act="zenkaiAsk"' + (g ? '' : ' disabled') + ' style="margin-top:6px">GO ZENKAI</button></div></div></div>';
+      let h = '<div class="card"><div class="zk-top"><div><p>Earn Zenkai Points at Power Level ' + G.TUNE.zenkaiLevel + '+: 12 x 1.084 per level above 10, so every level counts.</p><p class="mute">Resets: level, Zeni, parts, alloy, floors and Disc upgrades. Keeps: Monolith clears, Z-Fighters, Z points, items, chests, SUPER bonuses, Workshop, Store, Skill Tree, Buu Wishes and Zenkai upgrades.</p></div>'
+        + '<div style="text-align:center"><div class="big num">+' + fmt(g) + '</div><button class="btn gold" data-act="zenkaiAsk"' + (g ? '' : ' disabled') + ' style="margin-top:6px">GO ZENKAI</button></div></div></div>';
       h += '<div class="card" style="display:flex;justify-content:space-between;align-items:center"><span>ZENKAI POINTS</span><span class="big num">' + fmt(S.zenkai.pts) + '</span></div>';
       for (const T of G.ZK_TIERS) {
         const open = G.zkTierOpen(S, T.tier);
         h += '<div class="sec">' + T.name + (open ? '' : ' &middot; ' + T.need.toUpperCase()) + '</div>';
-        for (const z of G.ZK.filter((x) => x.tier === T.tier)) {
+        for (const z of G.ZK.filter((x) => x.tier === T.tier && G.zkUnlocked(S, x))) {
           const l = S.zenkai.up[z.id] || 0, c = G.zkCost(z, l), maxed = l >= z.max;
           const [k, a] = z.fx[0];
-          const tot = k === 'ctPts' ? '+' + a * l + ' points' : k === 'ctCap' ? '+' + l + ' levels' : ['ct2x', 'ct3x', 'ct5x', 'ct10x'].includes(k) ? '+' + +(a * l * 100).toFixed(1) + '% chance' : k === 'ctCostPct' ? 'orders need 1/' + +(1 + a * l).toFixed(2) + ' the alloy' : k === 'ctUpPct' ? '-' + Math.round(a * l * 100) + '% CP cost' : k === 'startZeni' ? (l ? fmt(Math.round(500 * Math.pow(4, l - 1))) + ' Z' : '0 Z') : k === 'monoTime' ? '+' + a * l + 's' : k === 'offlineH' ? '+' + l + 'h' : (k.endsWith('Pct') && ['monoArmorPct', 'techCdPct', 'floorReqPct'].includes(k) ? '-' : '+') + Math.round(a * l * 100) + '%';
+          const tot = k === 'ctPts' ? '+' + a * l + ' points' : k === 'ctCap' ? '+' + l + ' levels' : ['ct2x', 'ct3x', 'ct5x', 'ct10x'].includes(k) ? '+' + +(a * l * 100).toFixed(1) + '% chance' : k === 'ctCostPct' ? 'orders need 1/' + +(1 + a * l).toFixed(2) + ' the alloy' : k === 'ctUpPct' ? '-' + Math.round(a * l * 100) + '% CP cost' : fxText(k, a * l, z.neg);
           h += '<div class="row' + (open ? '' : ' dim') + '"><div><div class="nm"><span>' + z.name + '</span></div><div class="sub num">' + l + '/' + z.max + ' &middot; NOW ' + tot + '</div></div>'
             + '<div class="acts">' + (maxed ? '<span class="pill g">MAXED</span>' : '<button class="btn" data-act="zk" data-id="' + z.id + '"' + (open && S.zenkai.pts >= c ? '' : ' disabled') + '><i class="dico" style="margin-right:4px"></i>' + fmt(c) + '</button>') + '</div></div>';
+        }
+        const left = G.zkNextLocked(S, T.tier);
+        if (open && left.length && !T.free) {
+          const uc = G.zkUnlockCost(S, T.tier);
+          h += '<div class="row"><div><div class="nm"><span>UNLOCK AN UPGRADE</span><span class="pill num">' + left.length + ' LEFT</span></div><div class="sub">' + (left.some((z) => /disc$/.test(z.id)) ? 'Disc Damage comes first.' : 'A random one of the rest.') + ' Each unlock in this tier costs twice the last.</div></div>'
+            + '<div class="acts"><button class="btn gold" data-act="zkUnlock" data-t="' + T.tier + '"' + (S.zenkai.pts >= uc ? '' : ' disabled') + '><i class="dico" style="margin-right:4px"></i>' + fmt(uc) + '</button></div></div>';
         }
       }
       return h;
@@ -895,7 +928,7 @@
     stats() {
       const st = S.stats;
       const rows = [
-        ['Ki Power', fmt(C.power)], ['Disc hits / s', C.spin.toFixed(1)], ['Disc radius', C.radius.toFixed(1)], ['Disc crit chance', Math.round(C.crit * 100) + '% (' + critText(C.crit) + ')'], ['Crit damage bonus', '+' + Math.round((C.critDmg - 1) * 100) + '%'],
+        ['Ki Power', fmt(C.power)], ['Disc hits / s', C.spin.toFixed(1)], ['Disc radius', C.radius.toFixed(1)], ['Disc crit chance', Math.round(C.crit * 100) + '%' + (C.superCh ? ', SUPER ' + +(C.superCh * 100).toFixed(1) + '%' : '') + (C.ultraCh ? ', ULTRA ' + +(C.ultraCh * 100).toFixed(1) + '%' : '') + (C.omegaCh ? ', OMEGA ' + +(C.omegaCh * 100).toFixed(1) + '%' : '')], ['Crit damage bonus', '+' + Math.round((C.critDmg - 1) * 100) + '%'],
         ['Max machines', C.maxNodes], ['Technique damage', fmt(C.power * C.techMult)], ['Monolith time', C.monoTime + 's'],
         ['Cards / Transformed', G.has(S, 'cards') ? G.cardCount(S)[0] + '/' + G.CARDS.length + ' / ' + G.cardCount(S)[1] : 'Monolith ' + G.unlockAt('cards')], ['Contracts this run', S.ct.done + ' (' + fmt(S.ct.pts) + ' CP)'],
         ['Ki Beam', G.has(S, 'beam') ? fmt(C.beamDmg) + ' x ' + C.beamRate + '/s' + (C.beams > 1 ? ' x ' + C.beams + ' beams (60%)' : '') + ', ' + C.beamDrain.toFixed(1) + ' Ki/s' : 'Monolith ' + G.unlockAt('beam')],
@@ -1004,7 +1037,7 @@
     let h = '<h3>Choose a floor</h3><p class="mute">You can go to any floor down to your best this run (' + S.maxFloor + '). Each machine only shows up on its own floors.</p>';
     for (let r = 0; r <= G.regionOf(S.maxFloor); r++) {
       h += '<div class="sec">' + G.REGIONS[r].name.toUpperCase() + '</div><div class="tabs">';
-      for (let f = r * 10 + 1; f <= Math.min(S.maxFloor, r * 10 + 10); f++) h += '<button class="btn ' + (f === S.floor ? 'gold' : 'alt') + '" data-act="goFloor" data-f="' + f + '">' + f + '</button>';
+      for (let f = G.REGION_FLOORS[r][0]; f <= Math.min(S.maxFloor, G.REGION_FLOORS[r][1]); f++) h += '<button class="btn ' + (f === S.floor ? 'gold' : 'alt') + '" data-act="goFloor" data-f="' + f + '">' + f + '</button>';
       h += '</div>';
     }
     h += '<div class="acts"><button class="btn alt" data-act="mclose">CLOSE</button></div>';
@@ -1021,9 +1054,9 @@
       + '<div class="card kv num"><span>HP left</span><span>' + fmt(hp) + ' / ' + fmt(G.monoHp(k)) + (S.mono.dmg ? ' (' + Math.round(S.mono.best * 100) + '% CHIPPED)' : '') + '</span><span>Armor</span><span>' + fmt(ar) + '</span><span>Your Ki Power now</span><span>' + fmt(C.power) + '</span><span>Disc alone, ' + C.monoTime + 's</span><span>~' + fmt(est) + '</span></div>';
     if (!ready) h += '<p class="mute">Ready in ' + G.fmtTime((S.mono.readyAt - now) / 1000) + '.</p>';
     h += '<div class="sec">POP YOUR BUFFS</div>';
-    for (const id of ['weights', 'gravity', 'turbo', 'discap', 'chamber', 'radar', 'ritual', 'potara', 'fusion', 'water', 'kidrink']) {
+    for (const id of ['weights', 'gravity', 'pole', 'blessing', 'scouter', 'turbo', 'discap', 'chamber', 'water', 'kidrink']) {
       const I = G.ITEMS[id], n = S.items[id] || 0;
-      if (!n && !I.buy) continue;
+      if (!n) continue;
       h += '<div class="row"><div class="nm"><i class="gem" style="background:' + I.col + '"></i><span>' + I.name + ' x' + n + '</span>' + (S.buffs[id] ? '<span class="pill g">' + Math.ceil(S.buffs[id]) + 's</span>' : '') + '</div><div class="acts">'
         + (n ? '<button class="btn go" data-act="use" data-id="' + id + '">USE</button>' : '<button class="btn alt" data-act="buyItem" data-id="' + id + '" data-n="1"' + (S.zeni >= G.itemPrice(S, id) ? '' : ' disabled') + '>' + fmt(G.itemPrice(S, id)) + ' Z</button>') + '</div></div>';
     }
@@ -1035,7 +1068,7 @@
     const g = G.zenkaiGain(S);
     if (e.won) {
       const R = e.reward;
-      let h = '<h3>Monolith ' + (e.tier + 1) + ' shattered!</h3><div class="card loot"><span>' + capico + ' +' + R.caps + '</span><span>+' + R.itemChests + ' Item chests</span>' + (R.superChests ? '<span class="rar2">+' + R.superChests + ' SUPER chests</span>' : '') + (R.skillPts ? '<span class="rar3">+' + R.skillPts + ' Skill Point' + (R.skillPts > 1 ? 's' : '') + '</span>' : '') + '<span>Level cap ' + G.levelCap(S) + '</span></div>';
+      let h = '<h3>Monolith ' + (e.tier + 1) + ' shattered!</h3><div class="card loot"><span>' + capico + ' +' + R.caps + '</span>' + (R.itemChests ? '<span>+' + R.itemChests + ' Item chests</span>' : '') + (R.perk ? '<span class="rar4">' + esc(R.perk) + '</span>' : '') + (R.superChests ? '<span class="rar2">+' + R.superChests + ' SUPER chests</span>' : '') + (R.skillPts ? '<span class="rar3">+' + R.skillPts + ' Skill Point' + (R.skillPts > 1 ? 's' : '') + '</span>' : '') + '<span>Level cap ' + G.levelCap(S) + '</span></div>';
       for (const u of R.unlocks) h += '<div class="card"><b style="color:var(--gold)">NEW: ' + esc(u.name.toUpperCase()) + '</b><br>' + esc(u.desc) + '</div>';
       for (const hh of R.helpers) h += '<div class="card"><b style="color:#5fd35a">NEW Z-FIGHTER: ' + G.helperView(S, hh).name.toUpperCase() + '</b><br>Hire them at Capsule Corp with Z points.</div>';
       for (const t of R.techs) h += '<div class="card"><b style="color:#5fd35a">NEW TECHNIQUE: ' + G.TECHS[t].name.toUpperCase() + '</b><br>' + G.TECHS[t].desc + '</div>';

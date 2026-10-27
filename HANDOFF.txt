@@ -1,4 +1,4 @@
-DBZ IDLE HANDOFF (updated 2026-10-27, v0.5 live)
+DBZ IDLE HANDOFF (updated 2026-10-27, v0.6 live, v0.7 rebalance built locally)
 Read this first. It is the source of truth for the current game; IDLE_DESIGN.md is the v0.2 design and is out of
 date for everything from v0.4 on (fighters, forms, Ki, Z points, Contracts, Cards).
 
@@ -88,6 +88,75 @@ Browser-pane gotchas we hit (save yourself time):
 ==================================================================================================================
 5. SYSTEMS AND THE DECISIONS BEHIND THEM (newest first)
 ==================================================================================================================
+v0.7 SHMINER REBALANCE (owner: feature parity with Shminer, EXACT wiki numbers, big balance changes OK; exceptions:
+  no real money, Z-Fighters differ from drones, beams are ours. Wiki: https://shminer.miraheze.org/wiki/ - read pages
+  yourself. Real-money Shminer things become earn-only. Saves: FULL WIPE (VERSION 3; migrate() returns null for v<3;
+  boot shows "A fresh start").)
+  From the wiki, exact: machine HP / XP / parts-per-alloy / sell price = ore t (Ores, Craft, Sell; Earth = World 1
+    ores 1-25, Namek = World 2's 20 + World 3's first 5); no machine armor; World 2+ ore modifiers (MODS: SUPER/ULTRA
+    crit+ only, damage -x%, Technique damage -x%, Technique recharge x0.4, game speed -25%; golden/rainbow/portal ones
+    wait). Zenkai points 12 x 1.084^(level-10) (x(1+0.05(level-200)) past 200). XP to next level 250(1.2^(L-1)-1).
+    Level cap 30 +5 per Monolith. Monolith HP 100k x 2.8^k, armor 10 x 2.8^k (first = 5), 30 s fights, 20 min
+    cooldown after wins too, armor comes off BASE damage before crits and a hit below armor does nothing. Monolith
+    rewards M1-M50 from the wiki table (MONO_REW: gems = Rainbow Capsules, Relic chests = SUPER chests, Gifts = Item
+    chests, Mythic/Divine chest = 5/10 SUPER, Skill Points, perks PP gain x1.1/x1.25, EXP x1.15, Bar output x1.05;
+    food/other items skipped until an Items batch). Artifacts replace Zenkai upgrades (ZK tiers 1-4 open M0/8/14/19,
+    exact per-level costs, unlock Disc Damage first then random, each unlock in a tier x2). Run upgrades (DISC tab) =
+    Shminer Upgrades list Worlds 1-2 (UP_ROWS: Power Level requirement, multiplying Disc/Technique Damage lines,
+    Shminer cost rule base x N then base x 1.3^(N-10) x N, pay type from the wiki icons). Ki Power = (L+1)(L+2)/2.
+    Crit tiers chained (SUPER only after CRIT, ULTRA after SUPER, OMEGA after ULTRA), multipliers stack (ULTRA/OMEGA
+    x3 each). Refining: per-machine cost, double/triple/5x/10x roll independently and multiply, free refine chance,
+    the wiki's average formula for big batches; alloy cards = x alloy (Bar Card). Skill Tree opens at M4.
+  Ours to tune (the wiki doesn't say): upgrade base prices and which alloy (UP_ROWS base; tier = req/8 + level/2),
+    TUNE.discK (x8 on Ki Power), first artifact unlock price per tier (= that tier's first Disc Damage level),
+    TUNE.zeniK 0.02 on older Zeni prices (Workshop, Ki Beam, Z points), item prices (~40 of the newest part), the
+    CONTRACTS Zenkai tier (old prices x60). Our Z-Fighters keep their old crit rule (chance past 100%).
+  UPGRADE BARS (wiki Upgrades icons): each upgrade's exact bar machine(s) (UP_ROWS last column), gold-only / bar-only
+    / both as the wiki shows, alloy quantity uses the same cost rule (base 1), starting caps = wiki max - 6 (the two
+    Upgrade Caps upgrades are in the wiki's numbers).
+  FLOORS (wiki Floors): Earth = floors 1-42 (World 1), Namek = 43-72 (World 2), MAX_FLOOR 72. Each floor has two ores
+    (ORE_FLOORS from the Ores page): newer one 20% on its first floor, 50% on the next. Going down = floor clears:
+    floor x 5 on Earth, x 15 on Namek (floorNeed). A clear = the whole wave destroyed; the next wave (maxNodes
+    machines) comes C.spawn s later. S.floorKills now counts clears. Regions = Shminer zones (REGION_FLOORS). 46
+    machines (Cranium is back as t25 "Cobalt Scout Drone"). Golden/Rainbow/Galactic/Prismatic floors (x5/x50/x10/x1)
+    are built but nothing gives the chances yet. Buu Wishes rescaled (Bare Hands floor 12, Speed Run floor 8 in
+    15 min, Into The Depths floor 72).
+  ITEMS (wiki Items, Tier 1): our 14 items are Shminer's 13 + the Ki Drink, DBZ names (see ITEMS comment), exact
+    effects / durations / chest odds, one roll per chest by those odds; no buying with Zeni. Fusion Dance, Potara,
+    Capsule Magnet removed. Tier 2-4 wait for Fishing / Lootfrogs / Gifts.
+  OFFLINE (wiki Offline): cap 12h (+12h from the earn-only "Capsule Corp Founder", 1000 Rainbow Capsules, = Shminer's
+    paid Founder), Z-Fighters stay on the floor you left (no descending), parts x0.92, crits at their average, chest
+    meters stop but 0.3 Item + 0.1 SUPER chests per hour (randomly rounded), cards one lump roll.
+  SADALA (World 3, owner): Planet Sadala = floors 73-102, gate Monolith 20 (ours: the wiki doesn't say), floor x 35
+    clears, game speed x0.7 on the whole planet (wiki World 3 modifier), 20 "Sadalan" orange machines with World 3's
+    ore HP / XP / sell / bars / modifiers (OMEGA crit+ only etc.), 5 regions in build_tiles.py (Sadala Outskirts,
+    Royal Capital, Saiyan Training Grounds, Pod Launch Bay, Burning Sadala). 66 machines, 102 floors, 15 regions.
+  Ki Power's Zeni price (wiki: "varies") grows x1.15 a level past 10 (x1.3 stalled it at ~lv 43).
+  NEW BASELINE (node tools/sim.js 24 0.7, after all of v0.7): M1 0h20, M5 1h40, M9 3h01, M10 3h41-4h01, M15 ~8h30,
+    floor 40 at ~9-10h, 18-19 Monoliths at 24h, Ki Power ~lv 70, stuck at floor 43 (first Namek floor: 645 clears and
+    Lapis HP is x5 Cranium's). The bot also stops going Zenkai late (its rule wants each Zenkai much bigger than the
+    total so far) - a bot limit, but the floor-43 wall is real and needs the Namek-era systems (Relics, drones...).
+  RELICS (wiki Chests): SUPER chests = Relic chests, 1 relic each, odds 48/30/14/7/1/0.004 (Divine), 21 relics with exact
+    amounts / caps / gates (need: [opened of that rarity, Monolith]), S.relicN counts; no Rainbow Capsules from them.
+    Monolith Mythic/Divine chests give that relic. Multi Chest Chance, 5x/20x refine, fight length, Technique +5x.
+  STORE (wiki Store, open from the start): Freebie Pack (FREE button under the chest meters; every 10 min of game time,
+    bank 2: 5 capsules + 1 Item chest, 10% SUPER chest, 10% Skill Bit, 10 bits = 1 SP; fills offline), Resource Packs
+    (0.7x / 2.1x best level ever in Zenkai Points), Skill Point Pack 125, Gem Upgrades at wiki prices, Gem Unlocks for
+    Spirit Bomb / Smelter / Energy Transfer, earn-only Perks (2000 each, ours) and Founder (3000, ours).
+  BOMBS (owner: Techniques become Shminer bombs): charges + capacity (TUNE.techCap 10, ours) + per-bomb refill (wiki
+    times). Names: Basic = Ki Blast, Chain = Hellzone, Plenty = Solar Flare, Exp = Kaio-ken, MEGABOMB = Spirit Bomb,
+    Infinity = Destructo Barrage, Transmuter = Smelter, Cherry = Afterimage, Battery = Energy Transfer, D20 = Dragon Ball
+    Wish, Gem Bomb = Capsule Cannon. S.bomb = {id: {c, t}}. Senzu = Charge Magnet (+20 charges each).
+  WORKSHOP (wiki Workshop + Workshop/Costs): exact list World 1-2, bars only (3 kinds, x1.3/level, floor), opens M1, rows by
+    Monolith; our Ki rows kept. Waves = 10 machines (owner); spawn loosens spacing so a wave always fits.
+  SKILL TREE (wiki Skill-Tree): our reading of the graph = rows; a skill needs any skill in the row above + its Monolith.
+    Skills for missing systems skipped. Auto-Bomber fires one Technique every 1.25s. Scorched Earth kept (ours).
+  Sim: bot Zenkais when gain beats the last by 20% (or after 2h at 70%); it buys/fires the new systems.
+    Latest 24h (1 run): 18 Monoliths, floor 40 at 14h30; the wall is still floor 43 / Power Level ~95.
+  Not built from the wiki yet: golden/rainbow ores, Veins + Construct + Monuments (Namek should move behind its
+    Monument), Challenges, Cards (ours differ), Drones (ours on purpose), Skill Tree, Drones vs Z-Fighters (ours on purpose),
+    Veins, golden/rainbow ores, Construct/statues, Lootbugs, unlock ORDER (still ours: contracts M8 etc.).
+
 v0.6 KI BEAM (Monolith 9; built, NOT deployed yet)       core.js BEAM_UPS / beamRays / beamHit / setBurn; render.js drawBeams
   Owner decisions: shares the forms' Ki pool; a HOLD toggle (DISC/BEAM) under FORM (key B; right click fires the
     beam whatever the toggle says); the beam starts at the HUD fighter, goes THROUGH the finger and on to the edge

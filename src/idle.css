@@ -278,7 +278,7 @@ textarea { width: 100%; box-sizing: border-box; height: 70px; resize: vertical; 
 #banner b { display: block; font-size: 16px; color: var(--gold); }
 #banner span { font-size: 9px; color: var(--mute); }
 .thumb { width: 40px; height: 40px; image-rendering: pixelated; background: #121216; border: 2px solid var(--ink); flex: none; }
-.rar0 { color: #c7c2b8; } .rar1 { color: #5fd35a; } .rar2 { color: #c45bff; } .rar3 { color: #ffb030; } .rar4 { color: #ff4a4a; }
+.rar0 { color: #c7c2b8; } .rar1 { color: #5fd35a; } .rar2 { color: #c45bff; } .rar3 { color: #ffb030; } .rar4 { color: #ff4a4a; } .rar5 { color: #7fe8ff; }
 .chestc { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; }
 .chestc canvas { width: 48px; height: 48px; image-rendering: pixelated; }
 .loot { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -310,3 +310,14 @@ textarea { width: 100%; box-sizing: border-box; height: 70px; resize: vertical; 
 .tbtn.wbtn.firing { animation: pulse 0.5s steps(2) infinite; }
 .blook i { display: inline-block; width: 8px; height: 8px; margin-right: 5px; vertical-align: -1px; }
 .blook[aria-disabled="true"] { opacity: 0.55; }
+/* Freebie Pack button (under the chest meters) */
+.vbar.free { height: auto; padding: 3px 0 4px; }
+.vbar.free .fico { font-size: 14px; color: #ff8fd0; line-height: 1; }
+.vbar.free .ft { font-size: 7px; color: var(--mute); }
+.vbar.free.ready { box-shadow: inset 0 0 0 2px #ff8fd0; animation: pulse 0.8s steps(2) infinite; }
+/* Techniques as charges: the number is how many are stocked; two columns once there are many */
+.tbtn .cdt { font-size: 8px; align-items: start; justify-items: end; padding: 1px 3px 0 0; color: #fff6b0; }
+.tbtn .cdv { opacity: 0.85; }
+.tpanel.many { display: grid; grid-template-columns: repeat(2, 40px); justify-items: center; }
+.tpanel.many .t, .tpanel.many .tlock, .tpanel.many #tAuto { grid-column: 1 / -1; }
+.tpanel.many .tbtn { width: 40px; height: 30px; font-size: 6px; }

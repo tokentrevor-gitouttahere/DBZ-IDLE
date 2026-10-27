@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Builds the level art (src/gen_tiles.js) from the craftpix tilesets in assets/: floor tiles and scenery for each of
-the 10 regions, packed into one atlas. render.js lays each region's floor, shapes patches, builds its set pieces
+the 15 regions, packed into one atlas. render.js lays each region's floor, shapes patches, builds its set pieces
 (yards, junk heaps, roads, camps, reefs...) and tints the result (REGIONS below). Skeletons, graves and the big painted crystals are left out on purpose.
 Usage: python tools/build_tiles.py   (look at the result in dist/preview.html or the game)"""
 import base64, glob, io, json, os, re, sys, zipfile
@@ -101,6 +101,12 @@ REGIONS = [
     {'name': 'Ajisa Groves', 'base': 'rock', 'patch': None, 'detail': [('u_detail', 3)], 'feat': ['grove', 'grove', 'outcrop', 'wreck'], 'tint': (60, 0.7, 0.7)},
     {'name': "Frieza's Landing", 'base': 'rock', 'patch': None, 'detail': [('u_detail', 4)], 'feat': ['crater', 'ruins', 'crystals', 'wreck'], 'tint': (230, 0.45, 0.68)},
     {'name': 'Dying Namek', 'base': 'rock', 'patch': None, 'detail': [('u_detail', 4)], 'feat': ['lava', 'crater', 'outcrop', 'wreck'], 'tint': (-20, 0.9, 0.6)},
+    # Planet Sadala (World 3): red-brown Saiyan rock, a royal city, training craters, the pod bay, then fire
+    {'name': 'Sadala Outskirts', 'base': 'rock', 'patch': ['sand', 0.6], 'detail': [('u_detail', 4), ('v_stone', 3)], 'feat': ['outcrop', 'crater', 'path', 'wreck'], 'tint': (8, 0.75, 0.66)},
+    {'name': 'Royal Capital', 'base': 'brick', 'patch': None, 'detail': [('u_detail', 3)], 'feat': ['road', 'ruins', 'yard', 'junk'], 'tint': (150, 0.8, 0.62)},
+    {'name': 'Saiyan Training Grounds', 'base': 'sand', 'patch': ['rock', 0.55], 'detail': [('v_stone', 5)], 'feat': ['crater', 'crater', 'outcrop', 'wreck'], 'tint': (24, 0.6, 0.62)},
+    {'name': 'Pod Launch Bay', 'base': 'brick', 'patch': None, 'detail': [('u_detail', 4)], 'feat': ['yard', 'junk', 'crystals', 'wreck'], 'tint': (-12, 0.4, 0.56)},
+    {'name': 'Burning Sadala', 'base': 'rock', 'patch': None, 'detail': [('u_detail', 4)], 'feat': ['lava', 'crater', 'ruins', 'wreck'], 'tint': (-45, 1.0, 0.55)},
 ]
 # which crystals each region's 'crystals' set piece uses
 CRYSTALS = {"Dr. Gero's Lab": 'c_blue', 'Namekian Village': 'c_green', "Frieza's Landing": 'c_violet'}

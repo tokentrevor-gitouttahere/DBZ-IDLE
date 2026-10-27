@@ -41,6 +41,7 @@ function run() {
   }
   const C = G.calc(S);
   mark('END: PL ' + S.level + '/' + G.levelCap(S) + ', floor ' + S.floor + ' (best ' + S.maxFloor + '), Monoliths ' + S.mono.tier + ', Zenkai x' + S.zenkai.count + ', Ki Power ' + G.fmt(C.basePower) + ' (lv ' + (S.up.power || 0) + '), caps ' + S.caps + ', chests ' + S.stats.chests + '/' + S.stats.supers + ', beam ups ' + JSON.stringify(S.bup) + ', cards ' + G.cardCount(S)[0]);
+  mark('     floor clears x' + C.floorReq.toFixed(2) + ' (Floor Requirement artifact lv ' + (S.zenkai.up.a2floor || 0) + (S.zenkai.unl.includes('a2floor') ? '' : ', NOT unlocked') + '), XP x' + C.xpMult.toFixed(2) + ', artifacts ' + JSON.stringify(S.zenkai.up) + ', zenkai pts left ' + G.fmt(S.zenkai.pts) + ', W2 upgrades ' + JSON.stringify(Object.fromEntries(G.UP_KEYS.filter((k) => G.UPS[k].req >= 105).map((k) => [k, S.up[k] || 0]))));
   if (process.env.SIM_DUMP) console.log(JSON.stringify({zeni: S.zeni, up: S.up, parts: S.parts, alloy: S.alloy, floor: S.floor}));
   if (process.env.SIM_DUMP) console.log(JSON.stringify({zeni: S.zeni, up: S.up, parts: S.parts, alloy: S.alloy, floor: S.floor}));
   return log;
@@ -63,8 +64,8 @@ function needs(S) {
   const need = {};
   for (const k of G.UP_KEYS) {
     const l = S.up[k] || 0;
-    if (l >= G.UPS[k].max) continue;
-    for (const [id, n] of G.upCost(k, l).alloy) need[id] = Math.max(need[id] || 0, n);
+    if (!G.upOpen(S, k) || l >= G.upMax(S, k)) continue;
+    for (const [id, n] of G.upCost(k, l, S).alloy) need[id] = Math.max(need[id] || 0, n);
   }
   if (G.has(S, 'beam')) for (const k of G.BEAM_KEYS) {
     const l = S.bup[k] || 0;
@@ -83,7 +84,11 @@ function decide(S, W, now) {
   G.goalsFor(S, now);
   G.claimGoal(S, W, now);
   if (W.bulma) G.catchBulma(S, W, now);
-  for (const k of G.TECH_KEYS) if (W.nodes.length >= 3) G.useTech(S, W, k);
+  // Techniques: fire one of each that has charges; Afterimage first so the next one is free
+  if (W.nodes.length >= 3) for (const k of ['cherry', 'battery', 'wish'].concat(G.TECH_KEYS)) if (G.techCharges(S, k) >= 1) G.useTech(S, W, k);
+  // the Workshop and the Store's Technique unlocks
+  for (const w of G.WORKSHOP) if (w.unlock || w.max > 1) G.buyWs(S, w.id);
+  for (const u of ['u_mega', 'u_trans', 'u_battery']) G.buyStore(S, u);
   // forms: the top step; transform on a full Ki bar, but keep the Ki for a Monolith that's about to open
   const top = G.formsOpenTop(S);
   if (top) {
@@ -105,7 +110,7 @@ function decide(S, W, now) {
     if (!(S.parts[m.id] > 0)) continue;
     const short = Math.max(0, (need[m.id] || 0) * 2 - (S.alloy[m.id] || 0));
     if (short > 0) G.refine(S, m.id, short);
-    const keep = (need[m.id] || 0) * C.ratio * 2;
+    const keep = (need[m.id] || 0) * G.ratioOf(m.t, C) * 2;
     if ((S.parts[m.id] || 0) > keep) G.sell(S, m.id, S.parts[m.id] - keep);
   }
   // spend: cheapest useful thing first (Ki Power weighted)
@@ -114,9 +119,9 @@ function decide(S, W, now) {
     const consider = (c, fn, w) => { if (c * w < cost) { cost = c * w; pick = fn; } };
     for (const k of G.UP_KEYS) {
       const l = S.up[k] || 0;
-      if (l >= G.UPS[k].max) continue;
-      const c = G.upCost(k, l);
-      if (G.canAfford(S, c)) consider(c.zeni, () => G.buyUp(S, k), k === 'power' ? 0.5 : 1);
+      if (!G.upOpen(S, k) || l >= G.upMax(S, k, C)) continue;
+      const c = G.upCost(k, l, S);
+      if (G.canAfford(S, c)) consider(c.zeni + 0.01, () => G.buyUp(S, k), k === 'power' ? 0.3 : /^d\d|crit|super/.test(k) ? 0.6 : 1);
     }
     if (G.has(S, 'beam')) for (const k of G.BEAM_KEYS) {
       const l = S.bup[k] || 0;
@@ -147,17 +152,17 @@ function decide(S, W, now) {
   }
   // blocked on Ki Power by a part this floor barely sends? go back up and farm it, then come back down
   const pc = G.upCost('power', S.up.power || 0);
-  const miss = pc.alloy.find(([id, n]) => (S.alloy[id] || 0) + Math.floor((S.parts[id] || 0) / C.ratio) < n);
+  const miss = pc.alloy.find(([id, n]) => (S.alloy[id] || 0) + Math.floor((S.parts[id] || 0) / G.ratioOf(G.MACH[id].t, C)) < n);
   if (W.mode === 'field') {
     if (miss) {
-      const f = Math.min(S.maxFloor, 2 * G.MACH[miss[0]].t + 2);
-      const t = G.MACH[miss[0]].t;
-      if (2 * t + 2 <= S.maxFloor && G.floorPool(S.floor).every(([x]) => x !== t)) { G.setFloor(S, W, f); S.stay = true; }
-      else if (2 * t + 2 > S.maxFloor && S.stay) { S.stay = false; G.setFloor(S, W, S.maxFloor); }
+      const t = G.MACH[miss[0]].t, f = G.farmFloor(S, t);
+      if (f != null && G.floorPool(S.floor).every(([x]) => x !== t)) { G.setFloor(S, W, f); S.stay = true; }
+      else if (f == null && S.stay) { S.stay = false; G.setFloor(S, W, S.maxFloor); }
     } else if (S.stay) { S.stay = false; G.setFloor(S, W, S.maxFloor); }
   }
-  for (const s of G.SKILLS) G.buySkill(S, s.id);
-  for (const s of ['sp', 'house', 'member', 'pouch', 'plane']) G.buyStore(S, s);
+  for (let r = 0; r < G.SKILL_ROWS_N; r++) for (const s of G.SKILLS.filter((x) => x.row === r).sort((a, b) => a.cost - b.cost)) G.buySkill(S, s.id);
+  G.claimFreebie(S, W);
+  for (const s of ['sp', 'g_disc', 'g_meter', 'g_items', 'g_tech', 'g_bank', 'g_sell', 'founder', 'p_ore', 'p_tech', 'p_zk', 'p_bar', 'lrpack', 'plane']) G.buyStore(S, s);
   // cards: Transform the cheapest owned card with spare Rainbow Capsules
   if (G.has(S, 'cards')) {
     const gild = G.CARDS.filter((k) => S.cards[k.id] === 1).sort((a, b) => G.transformCost(a.id) - G.transformCost(b.id))[0];
@@ -168,7 +173,7 @@ function decide(S, W, now) {
   if (o) {
     const short = o.n - (S.alloy[o.id] || 0);
     if (short > 0) G.refine(S, o.id, short);
-    if (!G.ctDeliver(S, W) && (S.parts[o.id] || 0) < C.ratio) G.ctReroll(S, now);
+    if (!G.ctDeliver(S, W) && (S.parts[o.id] || 0) < G.ratioOf(G.MACH[o.id].t, C)) G.ctReroll(S, now);
     for (let i = 0; i < 20; i++) {
       const u = G.CT_UPS.filter((x) => G.ctOpen(S, x) && (S.ct.up[x.id] || 0) < G.ctMax(S, x)).sort((a, b) => G.ctUpCost(S, a, S.ct.up[a.id] || 0) - G.ctUpCost(S, b, S.ct.up[b.id] || 0))[0];
       if (!u || !G.buyCt(S, u.id)) break;
@@ -176,7 +181,7 @@ function decide(S, W, now) {
   }
   // Monolith: pop buffs and go
   if (W.mode === 'field' && G.monoReady(S, now)) {
-    for (const id of ['weights', 'gravity', 'turbo', 'discap', 'chamber', 'ritual', 'potara']) {
+    for (const id of ['weights', 'gravity', 'pole', 'blessing', 'scouter', 'turbo', 'discap', 'chamber']) {
       if (!(S.items[id] > 0) && G.ITEMS[id].buy && G.itemPrice(S, id) < S.zeni * 0.3) G.buyItem(S, id, 1);
       G.useItem(S, W, id);
     }
@@ -187,16 +192,21 @@ function decide(S, W, now) {
 function maybeZenkai(S, W, now, mark, e) {
   const g = G.zenkaiGain(S);
   if (g <= 0 || e.frac > 0.7) return;
-  if (g < 10 + S.zenkai.total * 0.8) return;
+  // Shminer-style: points depend on level only, so go again whenever this run beats the last one by 20%, or after
+  // 2h when it's at least 70% of the last (stuck runs)
+  const last = W.lastZk || { g: 0, at: 0 };
+  if (!(g >= Math.max(10, last.g * 1.2) || (now - last.at > 2 * 3600 * 1000 && g >= last.g * 0.7))) return;
+  W.lastZk = { g, at: now };
   G.buyZp(S, G.zpMax(S)); // Zeni resets, Z points stay: dump it all first
   G.zenkai(S, W, now);
   mark('ZENKAI #' + S.zenkai.count + ' +' + g + ' pts');
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 80; i++) {
+    for (const T of G.ZK_TIERS) if (!T.free && G.zkTierOpen(S, T.tier) && G.zkNextLocked(S, T.tier).length && G.zkUnlockCost(S, T.tier) <= S.zenkai.pts * 0.5) G.unlockZk(S, T.tier);
     let pick = null, cost = Infinity;
     for (const z of G.ZK) {
       const l = S.zenkai.up[z.id] || 0;
-      if (!G.zkTierOpen(S, z.tier) || l >= z.max) continue;
-      const c = G.zkCost(z, l) * ({ power: 0.6, weak: 0.8, time: 0.9 }[z.id] || 1.2);
+      if (!G.zkTierOpen(S, z.tier) || !G.zkUnlocked(S, z) || l >= z.max) continue;
+      const c = G.zkCost(z, l) * (/disc|armor/.test(z.id) ? 0.6 : 1.2);
       if (G.zkCost(z, l) <= S.zenkai.pts && c < cost) { cost = c; pick = z.id; }
     }
     if (!pick) break;
