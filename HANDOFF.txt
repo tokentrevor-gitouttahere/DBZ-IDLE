@@ -1,243 +1,226 @@
-DBZ IDLE HANDOFF (updated 2026-10-27, v0.3)
+DBZ IDLE HANDOFF (updated 2026-10-27, v0.5 live)
+Read this first. It is the source of truth for the current game; IDLE_DESIGN.md is the v0.2 design and is out of
+date for everything from v0.4 on (fighters, forms, Ki, Z points, Contracts, Cards).
 
-LIVE (v0.4+): https://tokentrevor-gitouttahere.github.io/DBZ-IDLE/  (GitHub Pages, main branch /docs)
-GALLERY: https://tokentrevor-gitouttahere.github.io/DBZ-IDLE/gallery.html
-REPO: https://github.com/tokentrevor-gitouttahere/DBZ-IDLE (public; assets/ craftpix packs are NOT in it, see .gitignore)
-  To publish: python tools/build.py (writes docs/), commit, git push. Pages rebuilds in about a minute.
-OLD (v0.3, claude.ai artifacts, not reachable from the owner's current account):
-  https://claude.ai/artifact/TPJgPWV98FzjPtZhsXhAyQ  gallery https://claude.ai/artifact/PEYRj27UXoCtyhcwc2QkEt
+==================================================================================================================
+0. WHERE THINGS ARE
+==================================================================================================================
+LIVE:    https://tokentrevor-gitouttahere.github.io/DBZ-IDLE/          (GitHub Pages: main branch, /docs folder)
+GALLERY: https://tokentrevor-gitouttahere.github.io/DBZ-IDLE/gallery.html   (all 480 machine variants)
+REPO:    https://github.com/tokentrevor-gitouttahere/DBZ-IDLE (public; gh CLI is signed in as that account)
+LOCAL:   C:\Users\Owner\Documents\claudeai\DBZ IDLE\idle            (this folder = the repo root)
+FIGHT SIM (art source, read only): C:\Users\Owner\Documents\claudeai\DBZ Fight Sim\src\index.m18.html (v30, the
+         highest index.m*.html). "DBZ IDLE\DBZ Blazing Sun" is only the sim's m19/v31 patch folder (no page in it).
+OLD:     v0.3 was a claude.ai artifact (TPJgPWV98FzjPtZhsXhAyQ). It is NOT reachable from the owner's current
+         account (read says not found, it isn't in their artifact list), so we moved to GitHub Pages. Don't retry it.
 
-BUILD
-  python tools/build_sprites.py [--sheet out.png]   machines atlas -> src/gen_sprites.js (from assets/ zips + previews)
-  python tools/build_tiles.py                       level tiles -> src/gen_tiles.js (check the look in dist/preview.html)
-  python tools/extract_rigs.py <fight-sim.html>     fighter rigs -> src/gen_rigs.js
-  python tools/build.py                             src/* -> dist/dbz-idle.html (published page), dist/preview.html,
-                                                    dist/gallery.html (all 480 machine variants)
-  node tools/crit_check.js                          how crit chance splits into tiers
-  node tools/sim.js 24 0.7                          pacing bot (SIM_DUMP=1 prints the final state)
-  Local test: the "dbz-idle" server in ../.claude/launch.json serves dist/ on :8765 (open /preview.html)
+Publish: python tools/build.py (also writes docs/), git commit, git push. Pages rebuilds in ~1 min; check with
+  gh api repos/tokentrevor-gitouttahere/DBZ-IDLE/pages/builds/latest --jq '.status + " " + .commit'
+  Commits use this repo's local git identity: tokentrevor-gitouttahere + the GitHub no-reply email (set because
+  the PC had no git identity, and the no-reply address keeps the owner's real email out of a public history).
+  End commit messages with the Co-Authored-By line the session asks for.
 
-FILES
-  src/core.js     rules + every tuning number (TUNE, tables). No DOM.
-  src/render.js   canvas: tiled levels, machine variants (paint/marks), effects, Bulma's plane, Monolith, disc
-  src/ui.js       HUD, panels, input, save/offline. Console: DBZIdle.S / DBZIdle.W
-  IDLE_DESIGN.md  full design; ASSETS.md where the art came from
+==================================================================================================================
+1. HOW THE OWNER WANTS TO WORK  (most important section)
+==================================================================================================================
+- The owner is "Shulk" in older notes. Their reference game is "Shminer" (they paste its wiki); translate its
+  terms into ours (table in section 3) and keep DBZ flavour.
+- QUESTIONS: ask them as multiple choice (AskUserQuestion, up to 4 per call, recommended option first). Read the
+  answers carefully: they often write their own answer in "Other" that changes the plan (e.g. Cards: "no card
+  count bonus, +5% each, gilding is called Transforming, golden border + glint, costs Rainbow Capsules").
+- SHOW, DON'T TELL: every change must be shown running in the game (preview screenshots / magnified crops of the
+  real canvas), not just described or diffed. "In engine" = in the game, visually.
+- DEPLOY GATE: build everything, show it, then WAIT. Only commit + push when they say "deploy" (or approve
+  publishing). Local commits of game changes also wait. Handoff/doc commits have been pushed without asking.
+- Pacing matters: after any economy change run the 24h sim and report the numbers next to the baseline (section 7).
+- After testing in the preview, put the preview save back the way it was (they asked for a fresh start once:
+  the preview save is currently erased = fresh start + fighter pick).
+- They can't see the artifact-era page any more; the playable link is GitHub Pages.
 
-DONE (v0.2, owner's feedback round 2)
-  Ore -> machines (20 sprites x paints/marks = 50 machines, each drops its own part). Floors (2 planets x 50,
-  10 regions from the tilesets), no old machines on later floors (go back up to farm). Bombs -> Techniques
-  (cooldowns). Companions get damage/speed/multishot. Rainbow Capsules (earned only). Item + SUPER chests from
-  damage meters. Skill tree (M3, a row per 2 Monoliths). Workshop + Workshop II, Capsule Store, Buu Wishes,
-  Loot Bulma visitor, Monolith rewards/unlock table, level cap +5 per Monolith. v1 saves migrate.
-  Checked at 390x844: mining, variants, techniques panel, companions, workshop, skill tree, chests, Monolith panel.
-  Checked in node: offline (floors descend), v1->v2 migration, Zenkai keep/reset, 24h pacing sim.
+==================================================================================================================
+2. BUILD, TOOLS, TESTING
+==================================================================================================================
+  python tools/build.py                          src/* -> dist/dbz-idle.html, dist/preview.html, dist/gallery.html,
+                                                 docs/index.html + docs/gallery.html (full documents) + docs/.nojekyll
+  python tools/extract_rigs.py "../../DBZ Fight Sim/src/index.m18.html"   fighters -> src/gen_rigs.js
+  python tools/build_sprites.py [--sheet out.png] machines -> src/gen_sprites.js (needs assets/ packs, local only)
+  python tools/build_tiles.py                    levels -> src/gen_tiles.js (needs assets/ packs, local only)
+  node tools/sim.js 24 0.7                       24h pacing bot (hours, share of time holding the disc)
+  node tools/crit_check.js                       how crit chance splits into tiers
+  Preview server: "dbz-idle" in ..\.claude\launch.json serves dist/ on :8765 -> open /preview.html
+  Console: DBZIdle.S (save), DBZIdle.W (live field), IdleCore (rules), Render (drawing) are reachable from JS.
 
-PUBLISHED v0.3 (2026-10-27)
-  Levels rebuilt: one floor tile family per region + noise-shaped patches + set pieces down the sides (render.js
-  FEAT: road, yard, junk, wreck, camp, outcrop, grove, ruins, crystals, reef, ship, sea, crater, lava, path).
-  Damage numbers on every hit (disc white, crits gold/big, super crits red "!", companions, techniques).
-  Patterns follow each animation frame (published already in v0.2.1).
-  Crit tiers past 100% (CRIT x2, SUPER x3, ULTRA x4, MEGA x5...; 2% chance buys 1% above 100%), one roll per hit.
-  Companion crit chance + Trait upgrades; traits: Yamcha steals Zeni (NEW, stand-in Goku art), Krillin pierces armor,
-  Gohan crits, Piccolo's beam hits a 2nd machine, Vegeta's pride = extra parts, Nappa splashes. Speech bubbles. Tapping an open tab's nav button again closes it.
-  Monolith damage carries over between attempts (and Zenkai) until it breaks. Red Ribbon Beacon (Disc): faster respawn, same cap.
-  v0.3.1: double-tap a machine in Bulma's Lab -> go to the floor it spawns on most (within this run's best floor), STAY on.
+Files: src/core.js rules + every number (TUNE and tables, no DOM; the sim requires it); src/render.js canvas;
+  src/ui.js HUD, sheets, input, save/offline; src/shell.html markup; src/idle.css; src/gen_*.js generated.
+assets/ = craftpix packs: their licence allows use in a game but NOT redistributing raw files, so .gitignore keeps
+  them out of the public repo (only the Silkscreen fonts are committed). The built page carries cut-down atlases.
 
-v0.4 (2026-10-27, local build, not published yet)
-  Field variety: core.js pickMachine(S, W) spawns any floor-pool type missing from the field first.
-  Companion projectiles: render.js drawShot()/shotPos(): Yamcha Spirit Ball (weave + trail), Krillin Kienzan (spin),
-  Gohan Masenko, Piccolo Special Beam Cannon (spiral), Vegeta small purple barrage blasts, Nappa Break Cannon orb.
-  Vegeta's Technique (owner): every 0.6s, 0.05x power per blast, 2 blasts at Trait 0, doubling per Trait level to 64
-  (Trait 5); Trait levels past that add +10% blast damage each. Keeps a fixed Saiyan Pride (+50% parts) on hits.
-  No armor on Planet 1 machines (owner): core.js machArmor = 0 for types 0-24; only the Monolith has armor until
-  Planet 2 (types 25+, formula unchanged). Planet 1 machHp x1.15. Measured first: with armor, the disc lost <=1% of
-  its damage on every Planet 1 type (the disc outgrows armor fast); 8-run sims of old / no armor / x1.15 / x1.3 /
-  x1.45 HP were all within sim noise (floor 30 at 167-217 min, ~23.3 Monoliths in 24h). Krillin's armor pierce
-  now only matters on the Monolith and Planet 2.
-  Owner wants every change SHOWN in the game (screenshots/zooms from the preview), not just described.
+Browser-pane gotchas we hit (save yourself time):
+- Screenshots sometimes come back stale or cropped/zoomed (DPR 1.5). Take a second screenshot; if it stays
+  cropped, open a new tab (tabs_create + navigate) and close the old one. CSS zoom on <html> did not help.
+- When the pane is hidden, requestAnimationFrame stalls: JS waits on rAF time out. Use setTimeout loops, or
+  capture inside an rAF loop while a screenshot/wait keeps the pane visible.
+- To show tiny pixel art, copy the field canvas / #faceCv into an overlay canvas at 4-6x (image-rendering:
+  pixelated) and screenshot that. To stage a scene, edit DBZIdle.S (e.g. S.mono.tier, S.cards, S.helpers).
+- Test saves: back up localStorage['dbzidle.v1'] first. To restore/erase without the game saving over you on
+  unload: Storage.prototype.setItem = function(){}; then localStorage['dbzidle.v1'] = backup (or removeItem), then
+  navigate. Bulk edits on Windows bash: heredocs with quotes broke; write helper scripts with the Write tool.
+- Sim instrumentation: copy tools/sim.js to the scratchpad, point its require at src/core.js, inject hourly logs.
 
-NOT DONE / NOT CHECKED
-  Not inside the fight sim app. Not tested on a real phone. A full Monolith fight and Bulma catch were not
-  clicked through in the browser this round (rules are covered by the sim). Buu Wishes and Store panels not
-  screenshotted. No sound.
+==================================================================================================================
+3. TERMS (Shminer / brief -> DBZ Idle)
+==================================================================================================================
+  Obelisk -> Katchin Monolith | Prestige / Prestige Points -> Zenkai / Zenkai Points | Gold -> Zeni
+  Gems -> Rainbow Capsules (earned only, never real money) | Ores -> machines (parts) | Bars -> Capsule Alloy
+  Bombs -> Techniques | Drones -> Z-Fighters (code still says helpers/companions) | Drone points -> Z points
+  Gilding -> Transforming (cards) | Transmuter Bomb -> Bulma's Smelter Technique
+  No equivalent (skipped on purpose): pets, fishing, archaeology, arcanist.
 
-NEXT
-  Owner's answers to IDLE_DESIGN.md section 21. Friends' playtest -> retune TUNE (Monolith growth, chests).
-  More planets: add ROSTER rows (more paints/marks) + REGIONS recipes in build_tiles.py.
+==================================================================================================================
+4. MONOLITH UNLOCK ORDER (core.js UNLOCKS, sorted by n; shown in the Monolith > UNLOCKS tab)
+==================================================================================================================
+  M1 Z-Fighters | M2 Workshop, Form 1 (SSJ) + Ki | M3 Techniques, Skill Tree | M4 Item chests | M5 SUPER chests,
+  Form 2 (SSJ2 / Majin) | M6 Workshop II | M7 Capsule Store | M8 Buu Wishes, CONTRACTS, Form 3 (SSJ3 / God) |
+  M10 Namek (floors 51-100), CARDS | M11 Form 4 (God / Blue) | M12 more Contract upgrades | M14 Form 5 (Blue /
+  Blue Evolution), more Contract upgrades | M16 more Contract upgrades | M18 Form 6 (MUI / Ultra Ego)
+  Z-Fighters by Monolith: Yamcha + Krillin M1, Gohan M2, Piccolo M4, Vegeta M7, Nappa M10.
 
-BRAINSTORM: KI BEAM (right click) - Shulk's idea, not built yet
-  Shulk's spec
-    - Right click (instead of the disc) fires a Ki Beam: a long beam covering a large vertical stretch of the
-      screen, about as wide as a small machine at base. Hits every machine it touches.
-    - Unlocks with a Monolith clear, together with a new Ki system that powers it.
-    - The player picks the look: Kamehameha, Galick Gun, Death Beam, Masenko, Special Beam Cannon, Final Flash...
-      Same function, different visual (colour, core, charge glow, tip).
-    - Its own upgrades: damage, length, width, split into 2/3/4/5 beams, burn chance (burn = damage over time).
-    - Ki: a small pool at first (2-3 s of beaming). Upgrades: Ki cost per second, recharge speed, recharge amount,
-      max Ki, and so on.
-    - Works on the Monolith, but the disc and the beam can't fire at the same time.
+==================================================================================================================
+5. SYSTEMS AND THE DECISIONS BEHIND THEM (newest first)
+==================================================================================================================
+v0.5 CARDS (Monolith 10, kept through Zenkai)                             core.js CARDS / cardRoll / transformCard
+  What: 149 cards = 50 machine (+parts from it), 50 alloy (+double-refine chance), 6 Z-Fighter (+damage),
+    6 form (-Ki drain in that form), 5 Technique (-cooldown), 15 item (+buff time; Senzu: chance to keep the bean),
+    10 region (+PL XP there), 7 misc: Katchin (+Monolith damage; ALWAYS drops when you break a Monolith = the
+    wiki's guaranteed Legendary Fish card), Loot Bulma (+her Zeni prize), Zenkai (+Zenkai Points), Capsule Chest
+    (+chest meters), Bulma's Order (+Contract Points), Training Goal (+goal Zeni), Critical Hit (+crit damage).
+  Owner decisions: owning a card = +5% to its own thing; NO bonus for the number of cards (they rejected it);
+    gilding is called TRANSFORM: x3 effect (+15%), costs Rainbow Capsules, gold frame + glint (.ccard.gold).
+  Drop rule (from the wiki): one roll per action with the chances ADDED (a kill dropping 12 parts rolls 12 x the
+    per-part chance once). Offline: one roll per missing card with everything done while away added up, so at
+    most one of each (200% still gives one). Live floor rolls are skipped offline (they add to the offline roll).
+  Rates (tuned by sim): machine 1/(250 x 1.12^t) per part, alloy 1/(200 x 1.1^t) per alloy, Z-Fighter 1/20000
+    per throw, form 1/900 per second, Technique 1/120 per use, item 1/25 per use, region 1/60 per floor, misc see
+    code. First pass was far too generous (101/149 in 24h); now ~40-50 at 9h, ~80/149 (30-40 Transformed) at 24h,
+    so the set is a long chase. Transform cost: machine/alloy 15 + 3t caps, others 40-120.
+  UI: Menu > CARDS (kind tabs with counts; tile = art, name, perk, TRANSFORM button or how-to-get). Form and
+    Z-Fighter card names follow the chosen fighter (cardName in ui.js). NEW CARD banner; cards in the away report.
+  Note: in the sim the Technique cards come slowly because the bot rarely sees 3+ machines (Z-Fighters clear the
+    field); a real player fires Techniques plenty.
 
-  Questions to settle
-    - Phones have no right click. Options: (a) a BEAM / DISC toggle button by the Techniques column; (b) hold with
-      a second finger; (c) long-press switches. Desktop keeps right click. (a) is the clearest.
-    - Aim: straight up from the finger (like the reference shot), toward the top of the screen, or along a drag?
-      "Large vertical portion" suggests up from the touch point; dragging sideways sweeps it.
-    - Does Ki reset on Zenkai (Shulk listed "ki amount" with things that reset), with the Ki upgrades permanent?
-    - Unlock slot: the Monolith order is Companions, Workshop, Techniques, Item chests, SUPER chests, Workshop II,
-      Store, Buu Wishes, Namek (10). The beam could open at Monolith 6 (alongside Workshop II) or 9.
+v0.5 CONTRACTS (Monolith 8, reset by Zenkai)                         core.js CT_UPS / ctMake / ctDeliver / buyCt
+  Owner decisions: unlock M8 (earlier than the wiki's 12, before Namek); each order asks for ONE alloy kind;
+    the permanent boosters live in a new Zenkai tier (tier 4 "CONTRACTS").
+  Order: alloy of one of the newest 10 machine kinds reached this run (so it's always farmable),
+    n = (10 + 2t) x 1.1^contractsDone / (1 + Contract Discount). Pays 10 CP (+ Payout booster), then the best of
+    10x/5x/3x/2x rolls. NEW ORDER: free swap once a minute (an order can ask for alloy you'd rather keep).
+  20 upgrades translated from the two wiki tables (Pickaxe -> disc, Triple Craft -> triple refine, Bomb
+    recharge -> Technique cooldown, EXP -> Power Level XP, Upgrade Bar Cost -> Disc upgrade alloy cost, Prestige
+    Point Gain -> Zenkai Points, 10x Craft -> 10x refine, Ore Sell -> part sell, Vein income -> Z-Fighter damage,
+    Golden floor -> salvage yield, Golden vein -> Rainbow Capsules, Super star spawn -> Loot Bulma visits, Base
+    Game Speed -> game speed (C.speed), Rainbow floor -> chest meters, Supernova -> hidden SUPER chest in Item
+    chests). Per-contract upgrades use the wiki's CP table (10, 500, 1500 ...). Cost growth x1.3 like the wiki.
+  Zenkai tier 4: Contract Discount, Double/Triple/5x/10x CP chance, Payout (+2 CP base), Upgrade Caps (+1 to
+    every Contract upgrade cap), Upgrade Discount. UI: Capsule Corp > CONTRACTS.
 
-  Ideas around it
-    - Charge-up: holding before release builds a short charge (x1.5 damage), like a Kamehameha wind-up.
-    - Splits fan out at a fixed angle (5 beams = a spread); each split beam does a share, so split trades focus
-      for coverage. Good against swarms, worse on the Monolith (where only one beam can touch it).
-    - Burn stacks up to N times on a machine; burning machines glow orange; a skill node "Scorched Earth"
-      makes burn spread to neighbours on death.
-    - Beam crits use the same tier system (CRIT, SUPER, ULTRA...), its own crit chance stat.
-    - Beam clash on the Monolith: at the start of a fight, mash to win a short beam struggle for bonus damage.
-    - Ki items: a Ki Drink (refill), "Kaio-ken Ki" buff (beam x2 but drains Ki twice as fast).
-    - Companions with a matching beam (Vegeta + Galick Gun, Piccolo + Special Beam Cannon) get a small bonus while
-      that beam is selected: a reason to pick a look beyond style.
-    - Beam looks as unlockables: SUPER chest drops or Capsule Store cosmetics (cosmetic only, no power).
-    - Upgrade homes: beam damage/length/width in the Disc tab (reset per run); split, burn and Ki pool in the
-      Workshop (permanent); a skill tree branch for it.
-    - Balance knobs for core.js: TUNE.beamKi (pool), kiRegen, kiCostPerSec, beamDmgShare (vs disc Ki Power),
-      beamLen (game px), beamWidth, burnChance, burnDps, burnTime.
+v0.5 Z POINTS + Z-FIGHTERS (companions renamed everywhere players see it)    core.js zpZeni / zpCost / zpMax / buyZp
+  Owner spec: Zeni buys Z points; Z points hire and upgrade Z-Fighters (like Shminer's drone points); Z points
+    and the price progress survive Zenkai; dumping Zeni into Z points before a Zenkai is the intended strategy.
+  Curve (owner's numbers): the first Zeni buys 10 points (= Yamcha's first Damage level), then 1 Zeni each up to
+    750 bought, then point n costs (n/750)^1.824 Zeni, so the millionth costs ~501K (TUNE.zpFirst/zpFlat/zpPow).
+  Owner decisions: hiring costs Z points too; keep the old upgrade caps; dumping is a HINT only (no buy button in
+    the Zenkai window); hints in a loading splash AND the Zenkai window.
+  Pricing reasoning: total Zeni for N points grows ~N^2.82, so old Zeni costs map to Z costs ~^0.354. Hire Z:
+    Yamcha 20, Krillin 26, Gohan 60, Piccolo 150, Vegeta 380, Nappa 940; upgrade = hire x mult x g^level with g
+    = old g^0.354 (dmg 1.103, spd 1.154, multi 2.41, crit 1.082, trait 1.112); Multishot mult cut 25 -> 8 so it
+    stays worth buying. Measured: levels track the old Zeni system (a few levels ahead), 1M points ~hour 11-12.
+  UI: Capsule Corp > Z-FIGHTERS: exchange bar (1x/25x/250x/2500x/MAX, cost -> +points, next point price),
+    balance with the .zpico orange-ball icon. #splash: random tip (40% the Zenkai-dump tip), >= 2.2s, tap to skip.
 
-PUBLISHED v0.5 (GitHub Pages, commit 5557525, 2026-10-27): CONTRACTS + CARDS (from the shminer wiki, translated)
-  Owner's answers: Contracts at Monolith 8, Cards at Monolith 10; one alloy kind per contract; a card = +5% to its
-  own thing, no card-count bonus; gilding is called TRANSFORM (x3 effect, Rainbow Capsules, gold frame + glint);
-  Contract boosters = a new Zenkai tier (CONTRACTS).
-  Contracts (core.js CT_UPS, ctMake/ctDeliver/ctReroll/buyCt; S.ct reset by Zenkai): order = alloy of one of
-  the newest 10 machine kinds reached this run, n = (10 + 2t) x 1.1^done / (1 + Contract Discount). Pays 10 CP
-  (+ Payout), best of 10x/5x/3x/2x rolls. NEW ORDER swap free once a minute. 20 upgrades translated from the two
-  wiki tables (8 open at M8, more at M12/14/16; "per contract" ones use the wiki's CP table). Zenkai tier 4:
-  Contract Discount, 2x/3x/5x/10x CP, Payout, Upgrade Caps, Upgrade Discount. UI: Capsule Corp > CONTRACTS.
-  Cards (CARDS, cardRoll/cardGive/transformCard; S.cards kept): 149 = 50 machine (parts), 50 alloy (double
-  refine), 6 Z-Fighter (damage), 6 form (Ki drain), 5 Technique (cooldown), 15 item (duration; Senzu: keep chance),
-  10 region (XP), 7 misc (Katchin: Monolith damage, always drops on a Monolith break; Loot Bulma, Zenkai, chests,
-  Bulma's Order (CP), Training Goal, Critical Hit). Rolls: one per action with the chances added (parts, alloy,
-  throws, seconds in a form...). Offline: one roll per missing card with all away activity added (max one).
-  Sim: ~40-50 cards at 9h, ~80/149 (30+ Transformed) at 24h; pacing unchanged (24 Monoliths, floor 100).
-  UI: Menu > CARDS (category tabs with counts, tile = art, name, perk, TRANSFORM or how-to), NEW CARD banner,
-  cards in the away report, stats rows. Shown in the preview: contracts tab + deliver + upgrade, cards sheet,
-  Transform (gold frame), form cards with the fighter's art, NEW CARD banner, Zenkai CONTRACTS tier.
-  Not mapped (no equivalent here): pets, fishing, archaeology, arcanist, Transmuter Bomb (the Smelter stands in).
+v0.4 CHOOSE FIGHTER + FORMS + KI                                   core.js FIGHTERS / FORM_TIERS / transform
+  Owner decisions: pick at game start (unskippable modal) + toggle any time in Menu > Options; fighter is
+    COSMETIC ONLY (forms have the same numbers for both); forms DRAIN KI.
+  Ladders (owner): Goku Base > SSJ > SSJ2 > SSJ3 > God > Blue > MUI; Vegeta Base > SSJ > Majin > God > Blue >
+    Blue Evolution > Ultra Ego. Steps 1-6: disc damage x2/3/4.5/6/8/11, Ki drain 4/6/8/9/10/12 per s, open at
+    M2/5/8/11/14/18. Ki: 100 max, +5/s in base form only, 25 needed to transform, 0 = back to base. Workshop: Ki
+    Reserve, Ki Recovery, Ki Control. Forms don't run offline; you come back with full Ki.
+  Looks follow the fight sim's rules (rig made for the form, else the fighter's own hair kit, else the base rig
+    with recoloured hair; colours from the sim's castOf/SAGA_HAIR): Goku goku-saiyan / goku-ssj / goku-saiyan gold
+    (SSJ2, how the sim draws it) / goku-buu-ssj3-hq / goku-saiyan red, blue, silver. Vegeta vegeta-buu-base /
+    -ssj / -ssj2 (Majin) / vegeta-namek with red, blue, deep blue, purple hair (the sim's Super-saga Vegeta art).
+  Lightning (owner asked): SSJ2 Goku and Majin Vegeta (and Blue Evolution, also a lightning form in the sim) get
+    flickering bolts on the HUD portrait (ui.js drawBolts) and on the disc aura (render.js drawAura).
+  SSJ3 head fix: the sim's goku-buu-ssj3-hq head faces backwards (also wrong in the sim itself, which we did not
+    touch). tools/extract_rigs.py HEAD_FLIP mirrors that rig's head shapes, so re-extraction keeps the fix.
+  With Vegeta chosen, Goku takes Vegeta's Z-Fighter slot (helperView): same key and upgrades, trait renamed
+    "Desperate Blasts", blue blasts, shouts Kamehameha!/Dragon Fist!. Switching fighters loses nothing.
+  UI: FORM panel under Techniques (FORM button, < > step picker, Ki bar; key F), HUD portrait = fighter in the
+    current form (sim idle pose), disc aura, transform flash + banner.
 
-PUBLISHED v0.5 (GitHub Pages, commit 5557525, 2026-10-27): Z POINTS + Z-FIGHTERS
-  Companions are now Z-Fighters (all player-facing text; code ids stay helpers/companions). Zeni buys Z points,
-  Z points hire and upgrade them. Z points + zpBought (lifetime points bought, sets the price) survive Zenkai.
-  Price (TUNE.zpFirst/zpFlat/zpPow): first Zeni buys 10, then 1 Zeni each to 750 bought, then point n costs
-  (n/750)^1.824 Zeni (millionth ~501K). core.js zpZeni/zpCost/zpMax/buyZp. Z prices: hire Yamcha 20, Krillin 26,
-  Gohan 60, Piccolo 150, Vegeta 380, Nappa 940; upgrade = hire x mult x g^level (g: dmg 1.103, spd 1.154,
-  multi 2.41 (mult 8), crit 1.082, trait 1.112). Yamcha's first Damage level = 10 Z. Caps unchanged.
-  Sim (bot buys missing Z per upgrade, dumps all Zeni into Z before Zenkai): levels track the old Zeni system
-  (a few levels ahead), 1M Z bought around hour 11-12, 23-24 Monoliths / floor 100 in 24h as before.
-  UI: Capsule Corp > Z-FIGHTERS tab: exchange bar (1x/25x/250x/2500x/MAX, cost -> +points, next point price),
-  Z point balance, Z prices (orange ball icon .zpico). Loading splash (#splash) with a random tip (40%: dump Zeni
-  into Z points before Zenkai), shown >= 2.2s, tap to skip. Zenkai confirm window: tip with what your Zeni would
-  buy in Z points right now (no auto-buy button: owner's choice, hint only).
-  Shown in the preview: splash, first buy (1 Zeni -> 10), 25x, hire + first upgrade, late game (next point 501K,
-  MAX), Zenkai tip. Preview save erased again afterwards.
+v0.4 VEGETA'S TECHNIQUE (owner)
+  Quick barrage of weak blasts: every 0.6s at 0.05x power per blast; 2 blasts at Trait 0, doubling per Trait level
+  up to 64 (Trait 5); later Trait levels add +10% blast damage each (owner chose "double, then +damage" because
+  doubling 40 levels is impossible). Keeps a fixed Saiyan Pride (+50% parts) on hits (owner: keep both).
 
-BUILT v0.4 (published to GitHub Pages): CHOOSE FIGHTER + FORMS + KI
-  Owner's ladders: Goku Base>SSJ>SSJ2>SSJ3>God>Blue>MUI; Vegeta Base>SSJ>Majin>God>Blue>Blue Evolution>Ultra Ego.
-  core.js FIGHTERS (looks per step: rig + recoloured hair + aura colour, sim colours), FORM_TIERS (shared numbers:
-  x2/3/4.5/6/8/11 disc damage, 4/6/8/9/10/12 Ki a second, open at Monolith 2/5/8/11/14/18; also in the UNLOCKS
-  table). Ki: TUNE.kiMax 100, kiRegen 5/s in base form, kiMinStart 25; 0 Ki = back to base. Workshop: Ki Reserve,
-  Ki Recovery (tier 1), Ki Control (tier 2). transform()/selectForm(); new form step -> FORM button moves to it.
-  S.fighter (null = pick on next load, also for old saves), S.ki, S.formSel, S.formOn (0 on load / offline).
-  Zenkai keeps fighter + formSel. Fighter is cosmetic only; Vegeta -> Goku in Vegeta's slot (helperView: Goku rig,
-  "Desperate Blasts", blue blasts, Kamehameha!/Dragon Fist!). Vegeta's base/SSJ/Majin use the Buu Saga rigs, his
-  God-tier forms vegeta-namek with recoloured hair (what the sim uses for Super-saga Vegeta); Goku's God/Blue/MUI
-  are goku-saiyan with recoloured hair, SSJ3 is goku-buu-ssj3-hq.
-  UI: fighter pick at start (modal can't be dismissed), Menu > Options > Fighter toggle, FORM panel under Techniques
-  (FORM button, < > step pickers, Ki bar; key F), HUD portrait = fighter in current form (idle pose), disc aura
-  (lightning on SSJ2/Majin/Evo), transform flash + banner. Stats sheet shows fighter/form/Ki.
-  Sim bot transforms on full Ki, saves Ki 40s before a Monolith, transforms at fight start. 6 x 24h runs:
-  23-24 Monoliths, floor 100 (same as before forms; Monoliths are cooldown-gated); floor 30 a bit sooner.
-  Fixes (owner): SSJ3 Goku's head art faced backwards (also in the fight sim's goku-buu-ssj3-hq): extract_rigs.py
-  HEAD_FLIP mirrors that rig's head shapes. Lightning on the fighter: ui.js drawBolts() flickers bolts over the HUD
-  portrait in spark forms (SSJ2 Goku, Majin Vegeta; Blue Evolution too). Preview save erased for a fresh start.
-  Shown in the preview: pick screen, Majin Vegeta live (banner, aura, Goku companion), every form x both fighters
-  (HUD portrait + aura), Options toggle. Not checked: a real phone, a full Monolith fight in a form.
+v0.4 NO ARMOR ON PLANET 1 (owner)
+  machArmor = 0 for machine types 0-24; only the Monolith has armor until Planet 2 (types 25+, formula unchanged).
+  Reasoning recorded: we measured first; with armor the disc lost <= 1% of its damage on every Planet 1 type, and
+  sims of old / no armor / HP x1.15 / x1.3 / x1.45 were all within noise. Chose Planet 1 HP x1.15 to cover first
+  visits to a new type, where armor used to slow you. Krillin's armor pierce now matters only on the Monolith and
+  Planet 2.
 
-PLAN: FIGHTER + FORMS (proposed 2026-10-27, waiting on the owner's answers; details in the brainstorms below)
-  Owner's answers (2026-10-27): 1 pick the fighter at the start of the game, toggle it later in an options menu.
-           2 Forms DRAIN KI (so Ki system first). 3 Fighter choice is COSMETIC ONLY (+ the companion swap, no perk).
-           4 Fight sim = C:\Users\Owner\Documents\claudeai\DBZ Fight Sim\src\index.m18.html (v30, highest build).
-           ("DBZ IDLE\DBZ Blazing Sun" is only the sim's m19/v31 patch folder, no page in it.)
-  Phase 1  Art: DONE (local). extract_rigs.py now also takes goku-buu, goku-buu-ssj3-hq, vegeta-namek,
-           vegeta-buu-base/-ssj/-ssj2, HAIRKITS and POSES.idle. render.js rigSprite(id, w, h, {pose:'idle', kit,
-           hair}) draws them like the sim (sim rules: a rig made for the form; else the fighter's own hair kit; else
-           the base rig with its hair recoloured #ffd23f). Contact sheet of all 13 looks shown to the owner.
-           Page grew 0.80 -> 1.06 MB. Proposed ladders (owner to confirm): Goku goku-saiyan / goku-ssj / goku-saiyan
-           gold hair (SSJ2, as the sim draws Cell Goku) / goku-buu-ssj3-hq (same orange gi); Vegeta all Buu Saga:
-           vegeta-buu-base / vegeta-buu-ssj / vegeta-buu-ssj2 (Majin).
-  Phase 2  Choose Fighter: S.fighter (default 'goku', kept through Zenkai), two-card pick on first launch, Menu ->
-           Fighter, HUD portrait follows the fighter, Goku takes Vegeta's companion slot (Desperate Blasts, small
-           blue ki blasts, moves Kamehameha!/Dragon Fist!), same key so upgrades carry over.
-  Phase 3  Ki system + Ki Beam (Shulk's spec): Goku = Kamehameha, Vegeta = Galick Gun.
-  Phase 4  Forms: transform button by Techniques. Goku Base/SSJ/SSJ2/SSJ3, Vegeta Base/SSJ/Majin SSJ2.
-           Forms boost the disc (and the beam once it exists); Goku's lean spin/size, Vegeta's lean damage/crit.
-  Open: switching cost, Forms timed vs Ki-draining, a fighter perk or not, unlock slots.
+v0.4 FIELD VARIETY + Z-FIGHTER PROJECTILES
+  pickMachine(S, W): any floor-pool type missing from the field spawns first (floors 1-2 only have one type).
+  Each Z-Fighter throws its own pixel-drawn projectile (render.js shotPos/drawShot): Yamcha weaving Spirit Ball,
+  Krillin spinning Kienzan, Gohan Masenko, Piccolo Special Beam Cannon with spiral, Vegeta purple barrage (Goku in
+  the slot: blue), Nappa big Break Cannon orb.
 
-BRAINSTORM: CHOOSE FIGHTER (Goku or Vegeta) - Shulk's idea, not built yet
-  Shulk's spec
-    - "Choose fighter" decides who stands in the HUD's top centre: Goku or Vegeta, shown in their idle pose.
-    - It also picks the Ki Beam (see the beam brainstorm above): Goku = Kamehameha, Vegeta = Galick Gun.
-    - Picking Vegeta puts Goku in Vegeta's companion slot with the same trait, renamed "Desperate Blasts" (owner,
-      2026-10-27; replaces the old "kindness = more loot" idea). Same mechanic as Vegeta's Technique: quick barrage
-      of weak blasts, doubling per Trait level, + the small fixed Saiyan Pride bonus.
-    - Opens new gameplay later through Forms (to be fleshed out).
+v0.3 and earlier (see IDLE_DESIGN.md): machines + floors + regions, Techniques, chests, crit tiers past 100%,
+  Monolith damage carries over between tries, Skill Tree, Workshop I/II, Capsule Store, Buu Wishes, Loot Bulma,
+  Zenkai, offline progress, double-tap a machine in Bulma's Lab to farm its floor.
 
-  Notes for building it
-    - Rigs already in the game: goku-saiyan, goku-ssj, vegeta-saiyan (src/gen_rigs.js). The HUD portrait today is
-      Goku (Super Saiyan after the first Zenkai): it would follow the chosen fighter instead. For the idle pose,
-      draw the rig with the fight sim's POSES.idle instead of rig.rest (extract_rigs.py would need to copy POSES/P).
-    - Vegeta Super Saiyan art: the sim has vegeta-buu-ssj; extract_rigs.py WANT list would need it for a Forms look.
-    - Save: S.fighter = 'goku' | 'vegeta' (kept through Zenkai). Companion slot: HELPERS entry 'vegeta' swaps its
-      name/rig/moves to Goku's (moves: 'Kamehameha!', 'Dragon Fist!'...) when S.fighter === 'vegeta'; same key,
-      same upgrades, so switching fighters doesn't lose companion progress.
-    - Where to choose: first launch (a two-card pick) plus Menu -> Fighter to switch later. Open: is switching free,
-      or once per Zenkai?
-    - Forms (later): Super Saiyan stages as timed or Ki-draining modes (disc/beam multipliers), unlocked by Monolith
-      clears or the skill tree; Vegeta and Goku could get different form perks.
+==================================================================================================================
+6. SAVE (localStorage 'dbzidle.v1', S.v = 2; new fields are filled in by migrate(), so old saves load)
+==================================================================================================================
+  Kept through Zenkai (core.js KEEP): caps, skillPts, mono, helpers, items, chests, meter, ws, sup, store, skills,
+    wishes, autoTech, zenkai, bulma, goals, seen, stats, opt, created, fighter, formSel, zp, zpBought, cards.
+  Reset by Zenkai: zeni, level/xp, parts, alloy, up (Disc), floors, run, buffs, tcd, ki/formOn, ct (Contracts).
+  S.fighter null -> fighter pick on next load (also for pre-v0.4 saves). formOn is 0 on load and after offline.
 
-  ALL GOKU AND VEGETA FORMS, IDLE POSE (Shulk: "get them all in one go")
-    Grab every Goku and Vegeta look the fight sim can draw, in the idle pose, in one extraction pass:
-    - Rigs with their own art (fight sim RIGS):
-        Goku:   goku-saiyan (base, Saiyan-Cell), goku-ssj (Super Saiyan, Namek-Cell), goku-buu (base, Buu Saga)
-        Vegeta: vegeta-saiyan (Saiyan Saga armour), vegeta-namek (Namek-Cell), vegeta-buu-base (Buu Saga),
-                vegeta-buu-ssj (Super Saiyan), vegeta-buu-ssj2 (Majin Vegeta, Super Saiyan 2)
-    - Forms drawn with hair kits on a base rig (fight sim HAIRKITS: ssj, ssj2, ssj3): e.g. Goku SSJ2 and SSJ3 on
-      goku-buu, Vegeta SSJ on vegeta-namek. Use the sim's own rigFor(id, form, race, x) to get the exact rig + kit
-      it pairs for each fighter/form, so the looks match the sim.
-    - Pose: the sim's POSES.idle (built with its P() helper), not rig.rest.
-    How: extend tools/extract_rigs.py to also copy HAIRKITS, P, POSES (at least idle), drawKit/kitPaths (already
-    copied), and the rigFor logic (or a table of fighter+form -> rig id + kit id read out of it). Add every rig id
-    above to WANT. Then render.js rigSprite() takes a kit and a pose. Check each one in a contact sheet
-    (like tools/build_sprites.py --sheet) before wiring them into Forms.
+==================================================================================================================
+7. PACING BASELINE (node tools/sim.js 24 0.7; noisy, run several)
+==================================================================================================================
+  24h: 23-24 Monoliths, floor 100, Zenkai x7-8, Ki Power ~30-37M (lv ~93). Floor 30 at ~150-215 min.
+  Monolith wins are gated by the 20-minute cooldown, so most changes barely move the Monolith count; look at
+  floor times, Z-Fighter levels and card counts too. The bot transforms on full Ki (saves Ki 40s before a
+  Monolith), buys the Z points each upgrade needs, dumps Zeni into Z before Zenkai, fills/swaps Contracts, buys
+  the cheapest Contract upgrade, and Transforms the cheapest card when caps allow.
 
-TODO: FIELD VARIETY (Shulk) - BUILT in v0.4
-  The field should NEVER be all one machine type. When a machine spawns, first fill in any type from the floor's
-  pool (core.js floorPool(f): up to 3 types) that isn't on the field yet; only once every type is present do the
-  normal spawn weights (newest 20% / 35% / oldest 45%) pick duplicates.
-  Where: core.js pickMachine(S) -> pass W in, check W.nodes for missing types from floorPool(S.floor), pick one of
-  the missing ones (weighted among themselves), else the weighted roll. Caveats:
-    - The very first floors only have 1-2 types in the pool, so "all one type" is unavoidable there (floor 1-2 =
-      Scout Drones only). Fine, or let floors 1-2 borrow floor 3's second type.
-    - Keeps farming fair: the rarest (newest) type always has at least one on the field, which speeds up parts for
-      it. Re-run node tools/sim.js afterwards; rare parts get easier, so alloy gating may need a nudge.
-    - Offline (core.js offline()) uses the pool weights directly; leave it, or blend toward an even split.
+==================================================================================================================
+8. NOT DONE / NOT CHECKED / KNOWN ROUGH EDGES
+==================================================================================================================
+  - Never tested on a real phone. A full Monolith fight while transformed, and Loot Bulma catches, were not
+    clicked through in the browser (rules are covered by the sim). No sound.
+  - Damage numbers can pile into a clump when Vegeta's barrage hits (64 tiny numbers). Possible fix: merge
+    numbers per machine per frame, or hide Z-Fighter numbers below a size.
+  - Krillin's armor-pierce trait is weak on Planet 1 now (no armor there).
+  - Not inside the fight sim app (would need a patch to add a tab).
+  - IDLE_DESIGN.md still describes v0.2; it needs a refresh if the owner wants a design doc.
 
-TODO: COMPANION PROJECTILES (Shulk) - BUILT in v0.4 (Vegeta's became the barrage; Goku's Kamehameha ball pending Choose Fighter)
-  Each companion throws their own projectile instead of the shared 3x3 ki ball (render.js frame(): "companion ki
-  balls"; shots carry s.helper). Suggested looks, matched to their moves and traits:
-    Yamcha   - small orange Spirit Ball that curves in (wobbly arc), leaves a short trail
-    Krillin  - spinning yellow Kienzan disc (flat ellipse, 2-frame spin), fits Cutting Edge (armour pierce)
-    Gohan    - yellow Masenko blast: fat round head + short tail
-    Piccolo  - Special Beam Cannon: thin straight beam with a spiral wrapped round it, fits Piercing Beam
-    Vegeta   - purple Galick Gun bolt (Goku in his slot: blue Kamehameha ball) once Choose Fighter lands
-    Nappa    - big orange Break Cannon orb that lands with a small blast, fits Bomber splash
-  Keep them pixel-drawn in code (like the disc) or cut from assets/assets.jpg's projectile row; arcs/straight
-  lines per companion via a path type on HELPERS (e.g. proj: 'arc' | 'line' | 'spin').
+==================================================================================================================
+9. NEXT / BACKLOG
+==================================================================================================================
+  - Owner's open questions from IDLE_DESIGN.md section 21 (still unanswered): Workshop II at M6 ok? 20-min Monolith
+    cooldown and pacing right for friends? use the unused top-down battle tanks art? should Z-Fighters descend
+    floors while you're away (current) or stay on your floor?
+  - Friends' playtest -> retune TUNE (Monolith growth, chests, Z prices, card odds).
+  - More planets: ROSTER rows (more paints/marks) + REGIONS recipes in build_tiles.py.
+  - KI BEAM (Shulk's idea, not built). Spec: right click (instead of the disc) fires a long vertical beam about a
+    small machine wide that hits everything it touches; unlocks with a Monolith clear; looks to pick from
+    (Kamehameha, Galick Gun, Death Beam, Masenko, Special Beam Cannon, Final Flash: same function); own upgrades
+    (damage, length, width, split into 2-5 beams, burn = damage over time); powered by Ki; works on the Monolith;
+    disc and beam can't fire together. The Ki pool now EXISTS (forms use it), so decide whether the beam shares it.
+    Open: phones have no right click (proposed: a BEAM/DISC toggle by Techniques); aim (up from the finger, drag to
+    sweep?); unlock slot. Ideas: charge-up x1.5, split beams share damage, burn stacks + "Scorched Earth" node,
+    beam crits use the crit tiers, beam clash on the Monolith, Ki Drink item, beam looks as cosmetics,
+    Goku = Kamehameha / Vegeta = Galick Gun by default (from the Choose Fighter idea), knobs in TUNE.
