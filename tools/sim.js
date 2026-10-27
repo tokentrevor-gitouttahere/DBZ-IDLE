@@ -111,12 +111,17 @@ function decide(S, W, now) {
       const c = G.wsCost(w, S.ws[w.id] || 0);
       if (G.canAfford(S, c)) consider(c.zeni, () => G.buyWs(S, w.id), 1.2);
     }
+    // Z-Fighters cost Z points: weigh each by the Zeni it takes to buy the points still missing
+    const viaZp = (zcost, buy, w) => {
+      const need = Math.max(0, zcost - S.zp);
+      const zeni = need ? G.zpCost(S, need) : 0;
+      if (zeni <= S.zeni) consider(Math.max(zeni, 1), () => { if (need) G.buyZp(S, need); buy(); }, w);
+    };
     for (const h of G.HELPERS) {
       if (!G.has(S, 'companions') || S.mono.tier < h.mono) continue;
-      if (!S.helpers[h.id]) { if (S.zeni >= h.hire) consider(h.hire, () => G.hire(S, h.id), 0.6); continue; }
+      if (!S.helpers[h.id]) { viaZp(h.hire, () => G.hire(S, h.id), 0.6); continue; }
       for (const k of ['dmg', 'spd', 'multi']) {
-        const c = G.compUpCost(h, k, S.helpers[h.id][k]);
-        if (S.helpers[h.id][k] < G.COMP_UPS[k].max && S.zeni >= c) consider(c, () => G.upHelper(S, h.id, k), 1.5);
+        if (S.helpers[h.id][k] < G.COMP_UPS[k].max) viaZp(G.compUpCost(h, k, S.helpers[h.id][k]), () => G.upHelper(S, h.id, k), 1.5);
       }
     }
     if (!pick) break;
@@ -135,6 +140,22 @@ function decide(S, W, now) {
   }
   for (const s of G.SKILLS) G.buySkill(S, s.id);
   for (const s of ['sp', 'house', 'member', 'pouch', 'plane']) G.buyStore(S, s);
+  // cards: Transform the cheapest owned card with spare Rainbow Capsules
+  if (G.has(S, 'cards')) {
+    const gild = G.CARDS.filter((k) => S.cards[k.id] === 1).sort((a, b) => G.transformCost(a.id) - G.transformCost(b.id))[0];
+    if (gild && S.caps >= G.transformCost(gild.id) + 30) G.transformCard(S, gild.id);
+  }
+  // contracts: refine toward the order, deliver it, otherwise swap it; spend CP on the cheapest upgrade
+  const o = G.ctCurrent(S);
+  if (o) {
+    const short = o.n - (S.alloy[o.id] || 0);
+    if (short > 0) G.refine(S, o.id, short);
+    if (!G.ctDeliver(S, W) && (S.parts[o.id] || 0) < C.ratio) G.ctReroll(S, now);
+    for (let i = 0; i < 20; i++) {
+      const u = G.CT_UPS.filter((x) => G.ctOpen(S, x) && (S.ct.up[x.id] || 0) < G.ctMax(S, x)).sort((a, b) => G.ctUpCost(S, a, S.ct.up[a.id] || 0) - G.ctUpCost(S, b, S.ct.up[b.id] || 0))[0];
+      if (!u || !G.buyCt(S, u.id)) break;
+    }
+  }
   // Monolith: pop buffs and go
   if (W.mode === 'field' && G.monoReady(S, now)) {
     for (const id of ['weights', 'gravity', 'turbo', 'discap', 'chamber', 'ritual', 'potara']) {
@@ -149,6 +170,7 @@ function maybeZenkai(S, W, now, mark, e) {
   const g = G.zenkaiGain(S);
   if (g <= 0 || e.frac > 0.7) return;
   if (g < 10 + S.zenkai.total * 0.8) return;
+  G.buyZp(S, G.zpMax(S)); // Zeni resets, Z points stay: dump it all first
   G.zenkai(S, W, now);
   mark('ZENKAI #' + S.zenkai.count + ' +' + g + ' pts');
   for (let i = 0; i < 60; i++) {

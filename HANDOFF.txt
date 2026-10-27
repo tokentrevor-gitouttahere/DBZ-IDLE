@@ -103,7 +103,43 @@ BRAINSTORM: KI BEAM (right click) - Shulk's idea, not built yet
     - Balance knobs for core.js: TUNE.beamKi (pool), kiRegen, kiCostPerSec, beamDmgShare (vs disc Ki Power),
       beamLen (game px), beamWidth, burnChance, burnDps, burnTime.
 
-BUILT v0.4 (local, not published): CHOOSE FIGHTER + FORMS + KI
+BUILT v0.5 (local, NOT pushed: owner says "deploy" first): CONTRACTS + CARDS (from the shminer wiki, translated)
+  Owner's answers: Contracts at Monolith 8, Cards at Monolith 10; one alloy kind per contract; a card = +5% to its
+  own thing, no card-count bonus; gilding is called TRANSFORM (x3 effect, Rainbow Capsules, gold frame + glint);
+  Contract boosters = a new Zenkai tier (CONTRACTS).
+  Contracts (core.js CT_UPS, ctMake/ctDeliver/ctReroll/buyCt; S.ct reset by Zenkai): order = alloy of one of
+  the newest 10 machine kinds reached this run, n = (10 + 2t) x 1.1^done / (1 + Contract Discount). Pays 10 CP
+  (+ Payout), best of 10x/5x/3x/2x rolls. NEW ORDER swap free once a minute. 20 upgrades translated from the two
+  wiki tables (8 open at M8, more at M12/14/16; "per contract" ones use the wiki's CP table). Zenkai tier 4:
+  Contract Discount, 2x/3x/5x/10x CP, Payout, Upgrade Caps, Upgrade Discount. UI: Capsule Corp > CONTRACTS.
+  Cards (CARDS, cardRoll/cardGive/transformCard; S.cards kept): 149 = 50 machine (parts), 50 alloy (double
+  refine), 6 Z-Fighter (damage), 6 form (Ki drain), 5 Technique (cooldown), 15 item (duration; Senzu: keep chance),
+  10 region (XP), 7 misc (Katchin: Monolith damage, always drops on a Monolith break; Loot Bulma, Zenkai, chests,
+  Bulma's Order (CP), Training Goal, Critical Hit). Rolls: one per action with the chances added (parts, alloy,
+  throws, seconds in a form...). Offline: one roll per missing card with all away activity added (max one).
+  Sim: ~40-50 cards at 9h, ~80/149 (30+ Transformed) at 24h; pacing unchanged (24 Monoliths, floor 100).
+  UI: Menu > CARDS (category tabs with counts, tile = art, name, perk, TRANSFORM or how-to), NEW CARD banner,
+  cards in the away report, stats rows. Shown in the preview: contracts tab + deliver + upgrade, cards sheet,
+  Transform (gold frame), form cards with the fighter's art, NEW CARD banner, Zenkai CONTRACTS tier.
+  Not mapped (no equivalent here): pets, fishing, archaeology, arcanist, Transmuter Bomb (the Smelter stands in).
+
+BUILT v0.5 (local, NOT pushed: owner says "deploy" first): Z POINTS + Z-FIGHTERS
+  Companions are now Z-Fighters (all player-facing text; code ids stay helpers/companions). Zeni buys Z points,
+  Z points hire and upgrade them. Z points + zpBought (lifetime points bought, sets the price) survive Zenkai.
+  Price (TUNE.zpFirst/zpFlat/zpPow): first Zeni buys 10, then 1 Zeni each to 750 bought, then point n costs
+  (n/750)^1.824 Zeni (millionth ~501K). core.js zpZeni/zpCost/zpMax/buyZp. Z prices: hire Yamcha 20, Krillin 26,
+  Gohan 60, Piccolo 150, Vegeta 380, Nappa 940; upgrade = hire x mult x g^level (g: dmg 1.103, spd 1.154,
+  multi 2.41 (mult 8), crit 1.082, trait 1.112). Yamcha's first Damage level = 10 Z. Caps unchanged.
+  Sim (bot buys missing Z per upgrade, dumps all Zeni into Z before Zenkai): levels track the old Zeni system
+  (a few levels ahead), 1M Z bought around hour 11-12, 23-24 Monoliths / floor 100 in 24h as before.
+  UI: Capsule Corp > Z-FIGHTERS tab: exchange bar (1x/25x/250x/2500x/MAX, cost -> +points, next point price),
+  Z point balance, Z prices (orange ball icon .zpico). Loading splash (#splash) with a random tip (40%: dump Zeni
+  into Z points before Zenkai), shown >= 2.2s, tap to skip. Zenkai confirm window: tip with what your Zeni would
+  buy in Z points right now (no auto-buy button: owner's choice, hint only).
+  Shown in the preview: splash, first buy (1 Zeni -> 10), 25x, hire + first upgrade, late game (next point 501K,
+  MAX), Zenkai tip. Preview save erased again afterwards.
+
+BUILT v0.4 (published to GitHub Pages): CHOOSE FIGHTER + FORMS + KI
   Owner's ladders: Goku Base>SSJ>SSJ2>SSJ3>God>Blue>MUI; Vegeta Base>SSJ>Majin>God>Blue>Blue Evolution>Ultra Ego.
   core.js FIGHTERS (looks per step: rig + recoloured hair + aura colour, sim colours), FORM_TIERS (shared numbers:
   x2/3/4.5/6/8/11 disc damage, 4/6/8/9/10/12 Ki a second, open at Monolith 2/5/8/11/14/18; also in the UNLOCKS

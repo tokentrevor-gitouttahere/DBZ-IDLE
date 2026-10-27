@@ -24,6 +24,9 @@ const IdleCore = (() => {
     techBase: 6, // a Technique hits for Ki Power x this x the Technique's own multiplier
     critOver: 2, // above 100% crit chance, this much chance buys 1% of the next crit tier
     kiMax: 100, kiRegen: 5, kiMinStart: 25, // Ki: pool, refill per s in base form, Ki needed to transform
+    // Z points (Z-Fighter currency, bought with Zeni, kept through Zenkai): the first Zeni buys zpFirst points, then
+    // 1 Zeni each up to zpFlat bought, then point n costs (n / zpFlat)^zpPow Zeni (the millionth: ~500K Zeni)
+    zpFirst: 10, zpFlat: 750, zpPow: 1.824,
     bulmaMin: 240, bulmaMax: 540, bulmaStay: 9 // Loot Bulma: seconds between visits, seconds on screen
   };
 
@@ -110,7 +113,7 @@ const IdleCore = (() => {
 
   // ------------------------------------------------------------------ what Monolith clears open
   const UNLOCKS = [
-    { n: 1, id: 'companions', name: 'Companions', desc: 'Fighters who throw ki at machines on their own, even while you are away.' },
+    { n: 1, id: 'companions', name: 'Z-Fighters', desc: 'Fighters who throw ki at machines on their own, even while you are away. Hire and train them with Z points.' },
     { n: 2, id: 'workshop', name: 'Workshop', desc: 'Permanent upgrades bought with Zeni and alloy. They survive Zenkai.' },
     { n: 3, id: 'techniques', name: 'Techniques', desc: 'Solar Flare and Spirit Bomb. Each has its own cooldown.' },
     { n: 3, id: 'skills', name: 'Skill Tree', desc: 'Spend Skill Points on permanent perks. More rows open every 2 Monoliths.' },
@@ -118,7 +121,9 @@ const IdleCore = (() => {
     { n: 5, id: 'superChests', name: 'SUPER Chests', desc: 'The purple meter fills slowly. SUPER chests roll permanent bonuses and Rainbow Capsules.' },
     { n: 6, id: 'workshop2', name: 'Workshop II', desc: 'Technique and chest upgrades in the Workshop.' },
     { n: 7, id: 'store', name: 'Capsule Store', desc: 'Spend Rainbow Capsules on Skill Points, chests and permanent perks.' },
+    { n: 8, id: 'contracts', name: 'Contracts', desc: 'Bulma orders Capsule Alloy. Each order pays Contract Points for upgrades this run (Zenkai resets them). Contract boosters join the Zenkai upgrades.' },
     { n: 8, id: 'wishes', name: 'Buu Wishes', desc: 'Challenges with permanent rewards. Each one counts within a single run.' },
+    { n: 10, id: 'cards', name: 'Cards', desc: 'A card for every machine, alloy, Z-Fighter, form, Technique, item and region: each gives +5% to its own thing. Transform a card with Rainbow Capsules to triple it.' },
     { n: 10, id: 'namek', name: 'Planet Namek', desc: "Floors 51-100: five new regions and the Frieza Force's machines." }
   ];
 
@@ -195,15 +200,25 @@ const IdleCore = (() => {
     { id: 'start', name: 'Starting Zeni', fx: [['startZeni', 1]], tier: 2, max: 10, base: 4, g: 1.5 },
     { id: 'size', name: 'Disc Size', fx: [['sizePct', 0.05]], tier: 2, max: 10, base: 6, g: 1.4 },
     { id: 'chest', name: 'Chest Meters', fx: [['chestPct', 0.05]], tier: 2, max: 20, base: 6, g: 1.35 },
-    { id: 'helper', name: 'Companion Power', fx: [['compPct', 0.25]], tier: 3, max: 20, base: 15, g: 1.35 },
+    { id: 'helper', name: 'Z-Fighter Power', fx: [['compPct', 0.25]], tier: 3, max: 20, base: 15, g: 1.35 },
     { id: 'offline', name: 'Offline Limit', fx: [['offlineH', 1]], tier: 3, max: 16, base: 12, g: 1.3 },
     { id: 'refine', name: 'Double Refine', fx: [['doubleRefine', 0.03]], tier: 3, max: 15, base: 15, g: 1.35 },
-    { id: 'floor', name: 'Floor Requirement', fx: [['floorReqPct', 0.02]], tier: 3, max: 15, base: 15, g: 1.35 }
+    { id: 'floor', name: 'Floor Requirement', fx: [['floorReqPct', 0.02]], tier: 3, max: 15, base: 15, g: 1.35 },
+    // tier 4: Contract boosters (permanent)
+    { id: 'ctcost', name: 'Contract Discount', fx: [['ctCostPct', 0.25]], tier: 4, max: 40, base: 10, g: 1.25 },
+    { id: 'ct2x', name: 'Double Contract Points', fx: [['ct2x', 0.04]], tier: 4, max: 25, base: 8, g: 1.3 },
+    { id: 'ct3x', name: 'Triple Contract Points', fx: [['ct3x', 0.02]], tier: 4, max: 25, base: 12, g: 1.3 },
+    { id: 'ct5x', name: '5x Contract Points', fx: [['ct5x', 0.01]], tier: 4, max: 20, base: 20, g: 1.35 },
+    { id: 'ct10x', name: '10x Contract Points', fx: [['ct10x', 0.005]], tier: 4, max: 20, base: 30, g: 1.4 },
+    { id: 'ctpts', name: 'Contract Payout', fx: [['ctPts', 2]], tier: 4, max: 20, base: 10, g: 1.3 },
+    { id: 'ctcap', name: 'Contract Upgrade Caps', fx: [['ctCap', 1]], tier: 4, max: 10, base: 25, g: 1.45 },
+    { id: 'ctdisc', name: 'Contract Upgrade Discount', fx: [['ctUpPct', 0.04]], tier: 4, max: 15, base: 15, g: 1.35 }
   ];
   const ZK_TIERS = [
     { tier: 1, name: 'TIER 1', need: 'Open from the start', open: () => true },
     { tier: 2, name: 'TIER 2', need: 'Clear Monolith 4 or Zenkai twice', open: (S) => S.mono.tier >= 4 || S.zenkai.count >= 2 },
-    { tier: 3, name: 'TIER 3', need: 'Clear Monolith 8 or Zenkai 5 times', open: (S) => S.mono.tier >= 8 || S.zenkai.count >= 5 }
+    { tier: 3, name: 'TIER 3', need: 'Clear Monolith 8 or Zenkai 5 times', open: (S) => S.mono.tier >= 8 || S.zenkai.count >= 5 },
+    { tier: 4, name: 'CONTRACTS', need: 'Opens with Contracts (Monolith 8)', open: (S) => has(S, 'contracts') }
   ];
 
   // Workshop: permanent, paid with Zeni + alloy. Tier 2 rows open with Workshop II.
@@ -237,22 +252,22 @@ const IdleCore = (() => {
     { id: 's_disc', r: 0, name: 'Disc Damage +3%', fx: [['discPct', 0.03]], max: 1000 },
     { id: 's_value', r: 0, name: 'Part Sell Value +3%', fx: [['valuePct', 0.03]], max: 1000 },
     { id: 's_xp', r: 0, name: 'Power Level Gain +2%', fx: [['xpPct', 0.02]], max: 1000 },
-    { id: 's_comp', r: 0, name: 'Companion Damage +3%', fx: [['compPct', 0.03]], max: 1000 },
+    { id: 's_comp', r: 0, name: 'Z-Fighter Damage +3%', fx: [['compPct', 0.03]], max: 1000 },
     { id: 's_critd', r: 0, name: 'Crit Damage +2% (every tier)', fx: [['critDmg', 0.02]], max: 1000 },
     { id: 's_tech', r: 1, name: 'Technique Damage +10%', fx: [['techPct', 0.1]], max: 1000 },
     { id: 's_chest', r: 1, name: 'Chest Meters +2%', fx: [['chestPct', 0.02]], max: 200 },
     { id: 's_double', r: 1, name: 'Double Salvage Chance +1%', fx: [['doubleOre', 0.01]], max: 50 },
     { id: 's_crit', r: 1, name: 'Disc Crit Chance +1%', fx: [['critCh', 0.01]], max: 1000 },
-    { id: 's_ccrit', r: 1, name: 'Companion Crit Chance +1%', fx: [['compCritCh', 0.01]], max: 1000 },
+    { id: 's_ccrit', r: 1, name: 'Z-Fighter Crit Chance +1%', fx: [['compCritCh', 0.01]], max: 1000 },
     { id: 's_disc2', r: 2, name: 'Disc Damage +10%', fx: [['discPct', 0.1]], max: 1000 },
     { id: 's_tcd', r: 2, name: 'Technique Cooldown -1%', fx: [['techCdPct', 0.01]], max: 30 },
-    { id: 's_cspd', r: 2, name: 'Companion Attack Speed +2%', fx: [['compSpdPct', 0.02]], max: 100 },
+    { id: 's_cspd', r: 2, name: 'Z-Fighter Attack Speed +2%', fx: [['compSpdPct', 0.02]], max: 100 },
     { id: 's_refine', r: 2, name: 'Double Refine +1%', fx: [['doubleRefine', 0.01]], max: 40 },
     { id: 's_zk', r: 3, name: 'Zenkai Points +10%', fx: [['zkPct', 0.1]], max: 200 },
     { id: 's_mtime', r: 3, name: 'Monolith Time +3s', fx: [['monoTime', 3]], max: 50 },
     { id: 's_floor', r: 3, name: 'Floor Requirement -1%', fx: [['floorReqPct', 0.01]], max: 25 },
     { id: 's_all', r: 4, name: 'All Damage +50%', fx: [['allPct', 0.5]], max: 100 },
-    { id: 's_multi', r: 4, name: 'Companion Multishot +1', fx: [['multiAdd', 1]], max: 3 }
+    { id: 's_multi', r: 4, name: 'Z-Fighter Multishot +1', fx: [['multiAdd', 1]], max: 3 }
   ];
   const SUPERBY = Object.fromEntries(SUPER.map((s) => [s.id, s]));
 
@@ -284,13 +299,13 @@ const IdleCore = (() => {
     ['critedge', 0, 3, 'Crit Edge', '+5% disc crit chance', [['critCh', 0.05]], 3, 2],
     ['afterimage', 1, 3, 'Afterimage', 'Hellzone Grenade lasts 5s longer', [['hellLen', 5]], 1, 2],
     ['refiner', 2, 3, 'Smart Refining', '-0.5 parts per alloy', [['refineMinus', 0.5]], 1, 2],
-    ['critcrit', 0, 4, 'Critical Overload', '+20% disc and companion crit chance (it can pass 100%)', [['critCh', 0.2], ['compCritCh', 0.2]], 2, 3],
+    ['critcrit', 0, 4, 'Critical Overload', '+20% disc and Z-Fighter crit chance (it can pass 100%)', [['critCh', 0.2], ['compCritCh', 0.2]], 2, 3],
     ['solar', 1, 4, 'Blinding Light', 'Solar Flare gives +50% more parts', [['flareAdd', 0.5]], 2, 3],
     ['zboost', 2, 4, 'Zenkai Boost', '+15% Zenkai Points', [['zkPct', 0.15]], 3, 3],
     ['masenko', 0, 5, 'Masenko Edge', 'Disc damage x1.5', [['discX', 1.5]], 1, 3],
     ['gather', 1, 5, 'Spirit Gathering', 'Spirit Bomb damage x2', [['spiritX', 2]], 2, 3],
     ['easy', 2, 5, 'Easy Descent', '-10% machines per floor', [['floorReqPct', 0.1]], 2, 3],
-    ['team', 0, 6, 'Team Training', '+50% companion damage', [['compPct', 0.5]], 2, 4],
+    ['team', 0, 6, 'Team Training', '+50% Z-Fighter damage', [['compPct', 0.5]], 2, 4],
     ['instinct', 1, 6, 'Fighting Instinct', 'Techniques fire on their own', [['autoTech', 1]], 1, 4],
     ['saver', 2, 6, 'Capsule Saver', '+25% Rainbow Capsules', [['capsPct', 0.25]], 2, 4],
     ['ui', 0, 7, 'Ultra Edge', 'All damage x2', [['allX', 2]], 1, 5],
@@ -313,7 +328,8 @@ const IdleCore = (() => {
     { id: 'deep', name: 'Into The Depths', goal: 'Reach floor 75', reward: '2 Skill Points + 100 Rainbow Capsules', grant: (S) => { S.skillPts += 2; addCaps(S, 100); }, prog: (S) => [Math.min(S.maxFloor, 75), 75] }
   ];
 
-  // companions: throw ki at a machine every `every` s for disc Ki Power x mult. Permanent (kept through Zenkai).
+  // Z-Fighters (code: helpers/companions): throw ki at a machine every `every` s for disc Ki Power x mult. Permanent
+  // (kept through Zenkai). hire: Z points to hire them; their upgrades cost hire x COMP_UPS mult x g^level Z points.
   // trait: what each companion brings besides damage (value = base + per x their Trait level, capped at max)
   //   steal: Zeni stolen per hit, as a share of the machine's part value (min 1 Z)   pierce: share of armor ignored
   //   pride: marks hit machines for extra parts   crit: extra crit chance   beam: also hits a 2nd machine for this share
@@ -321,12 +337,12 @@ const IdleCore = (() => {
   //   blasts: blasts per throw = base x 2^Trait level up to max; levels past that add blastDmg per level each.
   //   pride (on the helper, not the trait): a fixed Saiyan Pride mark on top
   const HELPERS = [
-    { id: 'yamcha', name: 'Yamcha', rig: 'goku-saiyan', standIn: true, mono: 1, hire: 100, every: 1.8, mult: 0.35, col: '#ffcf7a', moves: ['Wolf Fang Fist!', 'Spirit Ball!'], trait: { key: 'steal', name: 'Desert Bandit', base: 0.01, per: 0.005, max: 0.25, fmt: 'pct', desc: 'Steals Zeni from every machine he hits' } },
-    { id: 'krillin', name: 'Krillin', rig: 'krillin', mono: 1, hire: 200, every: 2.0, mult: 0.8, col: '#ffd23f', moves: ['Kienzan!', 'Scattering Bullet!'], trait: { key: 'pierce', name: 'Cutting Edge', base: 0.3, per: 0.03, max: 0.9, fmt: 'pct', desc: 'His hits ignore part of the armor' } },
-    { id: 'gohan', name: 'Gohan', rig: 'gohan-saiyan', mono: 2, hire: 2000, every: 1.6, mult: 1.1, col: '#ffe36a', moves: ['Masenko!', 'Kamehameha!'], trait: { key: 'crit', name: 'Hidden Potential', base: 0.25, per: 0.05, max: 5, fmt: 'pct', desc: 'Extra crit chance (it can pass 100%)' } },
-    { id: 'piccolo', name: 'Piccolo', rig: 'piccolo-saiyan', mono: 4, hire: 30000, every: 2.4, mult: 3.2, col: '#ffef9a', moves: ['Special Beam Cannon!', 'Hellzone Grenade!'], trait: { key: 'beam', name: 'Piercing Beam', base: 0.5, per: 0.05, max: 2, fmt: 'pct', desc: 'Each shot goes through into a second machine' } },
-    { id: 'vegeta', name: 'Vegeta', rig: 'vegeta-saiyan', mono: 7, hire: 400000, every: 0.6, mult: 0.05, col: '#c48bff', pride: 0.5, moves: ['Final Flash!', 'Galick Gun!', 'Big Bang Attack!'], trait: { key: 'blasts', name: "Vegeta's Technique", base: 2, max: 64, blastDmg: 0.1, fmt: 'blasts', desc: 'A quick barrage of weak blasts. Each Trait level doubles the blasts (up to 64), then adds +10% blast damage. Saiyan Pride: machines he hits drop +50% parts' } },
-    { id: 'nappa', name: 'Nappa', rig: 'nappa-saiyan', mono: 10, hire: 5e6, every: 3.0, mult: 9, col: '#ffb347', moves: ['Break Cannon!', 'Bomber DX!'], trait: { key: 'splash', name: 'Bomber', base: 0.3, per: 0.04, max: 1.5, fmt: 'pct', desc: 'Blasts hit every machine near the target' } }
+    { id: 'yamcha', name: 'Yamcha', rig: 'goku-saiyan', standIn: true, mono: 1, hire: 20, every: 1.8, mult: 0.35, col: '#ffcf7a', moves: ['Wolf Fang Fist!', 'Spirit Ball!'], trait: { key: 'steal', name: 'Desert Bandit', base: 0.01, per: 0.005, max: 0.25, fmt: 'pct', desc: 'Steals Zeni from every machine he hits' } },
+    { id: 'krillin', name: 'Krillin', rig: 'krillin', mono: 1, hire: 26, every: 2.0, mult: 0.8, col: '#ffd23f', moves: ['Kienzan!', 'Scattering Bullet!'], trait: { key: 'pierce', name: 'Cutting Edge', base: 0.3, per: 0.03, max: 0.9, fmt: 'pct', desc: 'His hits ignore part of the armor' } },
+    { id: 'gohan', name: 'Gohan', rig: 'gohan-saiyan', mono: 2, hire: 60, every: 1.6, mult: 1.1, col: '#ffe36a', moves: ['Masenko!', 'Kamehameha!'], trait: { key: 'crit', name: 'Hidden Potential', base: 0.25, per: 0.05, max: 5, fmt: 'pct', desc: 'Extra crit chance (it can pass 100%)' } },
+    { id: 'piccolo', name: 'Piccolo', rig: 'piccolo-saiyan', mono: 4, hire: 150, every: 2.4, mult: 3.2, col: '#ffef9a', moves: ['Special Beam Cannon!', 'Hellzone Grenade!'], trait: { key: 'beam', name: 'Piercing Beam', base: 0.5, per: 0.05, max: 2, fmt: 'pct', desc: 'Each shot goes through into a second machine' } },
+    { id: 'vegeta', name: 'Vegeta', rig: 'vegeta-saiyan', mono: 7, hire: 380, every: 0.6, mult: 0.05, col: '#c48bff', pride: 0.5, moves: ['Final Flash!', 'Galick Gun!', 'Big Bang Attack!'], trait: { key: 'blasts', name: "Vegeta's Technique", base: 2, max: 64, blastDmg: 0.1, fmt: 'blasts', desc: 'A quick barrage of weak blasts. Each Trait level doubles the blasts (up to 64), then adds +10% blast damage. Saiyan Pride: machines he hits drop +50% parts' } },
+    { id: 'nappa', name: 'Nappa', rig: 'nappa-saiyan', mono: 10, hire: 940, every: 3.0, mult: 9, col: '#ffb347', moves: ['Break Cannon!', 'Bomber DX!'], trait: { key: 'splash', name: 'Bomber', base: 0.3, per: 0.04, max: 1.5, fmt: 'pct', desc: 'Blasts hit every machine near the target' } }
   ];
   const HELPER = Object.fromEntries(HELPERS.map((h) => [h.id, h]));
   // with Vegeta as your fighter, Goku fights in Vegeta's slot: same key and upgrades, same trait under another name
@@ -338,11 +354,11 @@ const IdleCore = (() => {
     return Object.assign({}, h, { name: G2.name, rig: G2.rig, col: G2.col, alt: true, moves: G2.moves, trait: Object.assign({}, h.trait, { name: G2.traitName, desc: G2.traitDesc }) });
   }
   const COMP_UPS = {
-    dmg: { name: 'Damage', desc: '+25% damage', max: 100, mult: 0.5, g: 1.32 },
-    spd: { name: 'Attack Speed', desc: '+8% attack speed', max: 25, mult: 1.5, g: 1.5 },
-    multi: { name: 'Multishot', desc: '+1 ki ball per throw', max: 4, mult: 25, g: 12 },
-    crit: { name: 'Crit Chance', desc: '+3% crit chance', max: 100, mult: 2, g: 1.25 },
-    trait: { name: 'Trait', desc: 'Stronger trait', max: 40, mult: 3, g: 1.35 }
+    dmg: { name: 'Damage', desc: '+25% damage', max: 100, mult: 0.5, g: 1.103 },
+    spd: { name: 'Attack Speed', desc: '+8% attack speed', max: 25, mult: 1.5, g: 1.154 },
+    multi: { name: 'Multishot', desc: '+1 ki ball per throw', max: 4, mult: 8, g: 2.41 },
+    crit: { name: 'Crit Chance', desc: '+3% crit chance', max: 100, mult: 2, g: 1.082 },
+    trait: { name: 'Trait', desc: 'Stronger trait', max: 40, mult: 3, g: 1.112 }
   };
 
   // Techniques: one button each, own cooldown, no stacking
@@ -365,12 +381,12 @@ const IdleCore = (() => {
     senzu: { name: 'Senzu Bean', r: 1, dur: 0, desc: 'Every Technique is ready again', col: '#6fd27a' },
     chamber: { name: 'Time Chamber', r: 1, dur: 60, desc: 'Everything runs x2 speed for 1 min', col: '#e8e1d6' },
     magnet: { name: 'Capsule Magnet', r: 1, dur: 180, desc: 'Chest meters fill x2 for 3 min', col: '#ff6a6a' },
-    water: { name: 'Sacred Water', r: 1, dur: 180, desc: 'Companions attack 50% faster for 3 min', col: '#bff6ff' },
+    water: { name: 'Sacred Water', r: 1, dur: 180, desc: 'Z-Fighters attack 50% faster for 3 min', col: '#bff6ff' },
     gravity: { name: 'Gravity Machine', r: 2, dur: 120, desc: 'x3 disc damage for 2 min', col: '#9a7cff' },
     blessing: { name: "Kami's Blessing", r: 2, dur: 180, desc: 'x2 parts from machines for 3 min', col: '#fff6c0' },
     radar: { name: 'Dragon Radar', r: 2, dur: 180, desc: '+25% disc crit chance for 3 min', col: '#ffb030' },
     ritual: { name: "Elder Kai's Ritual", r: 3, dur: 180, desc: 'x2 all damage for 3 min', col: '#ff8fd0' },
-    fusion: { name: 'Fusion Dance', r: 3, dur: 120, desc: 'Companions deal x3 damage for 2 min', col: '#ffa040' },
+    fusion: { name: 'Fusion Dance', r: 3, dur: 120, desc: 'Z-Fighters deal x3 damage for 2 min', col: '#ffa040' },
     potara: { name: 'Potara Earrings', r: 4, dur: 60, desc: 'x5 all damage for 1 min', col: '#ffe36a' }
   };
   const ITEM_KEYS = Object.keys(ITEMS);
@@ -398,7 +414,11 @@ const IdleCore = (() => {
       stats: { kills: 0, dmg: 0, techs: 0, play: 0, parts: 0, zeni: 0, monoWins: 0, monoTries: 0, chests: 0, supers: 0, bulma: 0, capsEarned: 0 },
       opt: { reduce: false, offBuffs: true },
       // fighter: 'goku' | 'vegeta' (null until picked at the start). formSel: the step the FORM button uses; formOn: the step you're in now
-      fighter: null, ki: TUNE.kiMax, formSel: 1, formOn: 0
+      fighter: null, ki: TUNE.kiMax, formSel: 1, formOn: 0,
+      // Z points for Z-Fighters (kept through Zenkai); zpBought: every point ever bought (sets the price)
+      zp: 0, zpBought: 0,
+      // Contracts (this run) and Cards (kept)
+      ct: newCt(), cards: {}
     };
   }
   // saves from older versions come in here; each step upgrades one version
@@ -422,6 +442,7 @@ const IdleCore = (() => {
     for (const k of ['mono', 'zenkai', 'goals', 'stats', 'chests', 'meter', 'opt', 'bulma']) S[k] = Object.assign({}, base[k], S[k]);
     S.run = Object.assign(newRun(now), S.run);
     S.formOn = 0; // you load in base form
+    S.ct = Object.assign(newCt(), S.ct);
     return S;
   }
 
@@ -445,6 +466,7 @@ const IdleCore = (() => {
     for (const s of STORE) if (s.fx) add(s.fx, S.store[s.id] || 0);
     for (const s of SKILLS) add(s.fx, S.skills[s.id] || 0);
     for (const w of WISHES) if (w.fx && S.wishes[w.id]) add(w.fx, 1);
+    if (S.ct) for (const u of CT_UPS) add(u.fx, S.ct.up[u.id] || 0);
     return B;
   }
   const b0 = (B, k) => B[k] || 0;
@@ -455,7 +477,8 @@ const IdleCore = (() => {
     const p = lv(S, 'power');
     // buffs of one kind don't stack with each other: the strongest one active applies
     const allDmg = (1 + b0(B, 'allPct')) * b1(B, 'allX') * (f.potara > 0 ? 5 : f.ritual > 0 ? 2 : 1);
-    const basePower = (1 + p) * Math.pow(1.1, p) * (1 + 0.03 * (S.level - 1)) * (1 + b0(B, 'discPct')) * b1(B, 'discX');
+    const ctDone = S.ct ? S.ct.done : 0;
+    const basePower = (1 + p) * Math.pow(1.1, p) * (1 + 0.03 * (S.level - 1)) * (1 + b0(B, 'discPct') + b0(B, 'discPerCt') * ctDone) * b1(B, 'discX');
     const formMult = S.formOn > 0 && FORM_TIERS[S.formOn] ? FORM_TIERS[S.formOn].mult : 1;
     const power = basePower * (f.gravity > 0 ? 3 : f.weights > 0 ? 2 : 1) * allDmg * formMult;
     return {
@@ -466,29 +489,31 @@ const IdleCore = (() => {
       spin: 4 * (1 + 0.12 * lv(S, 'spin')) * (1 + b0(B, 'spinPct')) * (f.turbo > 0 ? 1.5 : 1),
       radius: (10 + 1.25 * lv(S, 'size')) * (1 + b0(B, 'sizePct')) * (f.discap > 0 ? 1.4 : 1),
       crit: 0.05 + 0.02 * lv(S, 'crit') + b0(B, 'critCh') + (f.radar > 0 ? 0.25 : 0), // raw chance: may pass 100%
-      critDmg: 1 + b0(B, 'critDmg'),
+      critDmg: 1 + b0(B, 'critDmg') + cardVal(S, 'x_crit'),
       compCrit: b0(B, 'compCritCh'),
       maxNodes: 5 + lv(S, 'field') + b0(B, 'fieldAdd'),
       spawn: TUNE.spawnEvery / ((1 + b0(B, 'spawnPct')) * (1 + 0.06 * lv(S, 'beacon'))), // seconds per machine while below the cap
-      techMult: TUNE.techBase * (1 + b0(B, 'techPct')),
+      techMult: TUNE.techBase * (1 + b0(B, 'techPct') + b0(B, 'techPerCt') * ctDone),
       techCd: Math.max(0.25, 1 - b0(B, 'techCdPct')),
       ratio: Math.max(1.5, 4 - 0.5 * lv(S, 'refine') - b0(B, 'refineMinus')),
       valueMult: (1 + 0.15 * lv(S, 'value')) * (1 + b0(B, 'valuePct')) * (f.rice > 0 ? 1.5 : 1),
       xpMult: (1 + b0(B, 'xpPct')) * (f.scouter > 0 ? 2 : 1),
       yieldMult: (1 + b0(B, 'yieldPct')) * (f.blessing > 0 ? 2 : 1),
       doubleOre: b0(B, 'doubleOre'),
-      chestMult: (1 + b0(B, 'chestPct')) * (f.magnet > 0 ? 2 : 1),
+      chestMult: (1 + b0(B, 'chestPct') + cardVal(S, 'x_chest')) * (f.magnet > 0 ? 2 : 1),
       compMult: (1 + b0(B, 'compPct')) * (f.fusion > 0 ? 3 : 1) * allDmg,
       compSpd: (1 + b0(B, 'compSpdPct')) * (f.water > 0 ? 1.5 : 1),
-      speed: f.chamber > 0 ? 2 : 1,
+      speed: (f.chamber > 0 ? 2 : 1) * (1 + b0(B, 'speedPct')),
       floorReq: Math.max(0.3, 1 - b0(B, 'floorReqPct')),
       monoTime: TUNE.monoTime + b0(B, 'monoTime'),
       monoArmorMult: Math.max(0.2, 1 - b0(B, 'monoArmorPct')),
       offlineCap: (TUNE.offlineCapH + b0(B, 'offlineH')) * 3600,
       offlineMult: 1 + b0(B, 'offlinePct'),
       doubleRefine: b0(B, 'doubleRefine'),
+      tripleRefine: b0(B, 'tripleRefine'), tenRefine: b0(B, 'tenRefine'), superFromItem: b0(B, 'superFromItem'),
+      alloyCost: Math.max(0.5, 1 - b0(B, 'alloyCostPct')),
       capsMult: 1 + b0(B, 'capsPct'),
-      zkMult: 1 + b0(B, 'zkPct'),
+      zkMult: (1 + b0(B, 'zkPct')) * (1 + cardVal(S, 'x_zenkai')),
       autoTech: b0(B, 'autoTech') > 0,
       hellLen: 10 + b0(B, 'hellLen'),
       hellRate: b1(B, 'hellRateX'),
@@ -526,7 +551,7 @@ const IdleCore = (() => {
     const d = c ? c.dmg : 0, s = c ? c.spd : 0, m = c ? c.multi : 0;
     const T = h.trait, tl = c ? c.trait || 0 : 0, blasts = T.key === 'blasts';
     const over = blasts ? Math.max(0, tl - Math.log2(T.max / T.base)) : 0; // Trait levels past the blast cap
-    return { dmg: C.basePower * h.mult * (1 + 0.25 * d) * C.compMult * (1 + (blasts ? T.blastDmg * over : 0)), every: h.every / ((1 + 0.08 * s) * C.compSpd), shots: (blasts ? traitVal(h, c) : 1) + m + C.multiAdd, crit: 0.05 + 0.03 * (c ? c.crit || 0 : 0) + C.compCrit + (T.key === 'crit' ? traitVal(h, c) : 0), trait: traitVal(h, c), over };
+    return { dmg: C.basePower * h.mult * (1 + 0.25 * d) * C.compMult * (1 + (blasts ? T.blastDmg * over : 0)) * (1 + cardVal(S, 'f_' + h.id)), every: h.every / ((1 + 0.08 * s) * C.compSpd), shots: (blasts ? traitVal(h, c) : 1) + m + C.multiAdd, crit: 0.05 + 0.03 * (c ? c.crit || 0 : 0) + C.compCrit + (T.key === 'crit' ? traitVal(h, c) : 0), trait: traitVal(h, c), over };
   }
   const traitVal = (h, c) => {
     const l = c ? c.trait || 0 : 0;
@@ -548,9 +573,10 @@ const IdleCore = (() => {
     if (t > 0 && l % 3 === 2) out.push([MACHINES[hash(key + ':' + l) % t].id, Math.ceil((4 + l * 1.5) * (qtyMul || 1))]);
     return out;
   }
-  function upCost(key, l) {
+  function upCost(key, l, S) {
     const U = UPS[key];
-    return { zeni: Math.round(U.base * Math.pow(U.g, l)), alloy: alloyNeed(key, l, U.from, U.per) };
+    const k = S ? calc(S).alloyCost : 1;
+    return { zeni: Math.round(U.base * Math.pow(U.g, l)), alloy: alloyNeed(key, l, U.from, U.per).map(([id, n]) => [id, Math.max(1, Math.ceil(n * k))]) };
   }
   function wsCost(w, l) { return { zeni: Math.round(w.base * Math.pow(w.g, l)), alloy: alloyNeed('ws' + w.id, l + (w.tier === 2 ? 10 : 2), 2, 2, 3) }; }
   function canAfford(S, cost) {
@@ -635,13 +661,14 @@ const IdleCore = (() => {
   function addCaps(S, n) { S.caps += n; S.stats.capsEarned += n; }
   function killNode(S, W, C, n, by) {
     const m = MACH[n.m];
-    let qty = Math.max(1, sround(C.yieldMult * (n.marks.flare ? 1 + C.flareBonus : 1) * (1 + (n.marks.pride || 0))));
+    let qty = Math.max(1, sround(C.yieldMult * (n.marks.flare ? 1 + C.flareBonus : 1) * (1 + (n.marks.pride || 0)) * (1 + cardVal(S, 'm' + m.t))));
     if (C.doubleOre && Math.random() < C.doubleOre) qty *= 2;
     const alloy = by === 'smelt';
     if (alloy) S.alloy[m.id] = (S.alloy[m.id] || 0) + qty;
     else S.parts[m.id] = (S.parts[m.id] || 0) + qty;
     S.seen[m.id] = 1;
-    const xp = machXp(m.t) * C.xpMult * (n.marks.kaio ? 2 : 1);
+    const xp = machXp(m.t) * C.xpMult * (n.marks.kaio ? 2 : 1) * (1 + cardVal(S, 'r' + regionOf(S.floor)));
+    cardRoll(S, W, (alloy ? 'a' : 'm') + m.t, qty);
     S.stats.kills++; S.stats.parts += qty;
     S.run.kills++; S.run.got[m.id] = (S.run.got[m.id] || 0) + qty;
     let caps = 0;
@@ -667,6 +694,7 @@ const IdleCore = (() => {
     S.maxFloor = Math.max(S.maxFloor, S.floor);
     if (S.floor >= 25 && S.run.elapsed <= 900) S.run.fast25 = true;
     if (W) emit(W, { type: 'floor', floor: S.floor, region: (S.floor - 1) % 10 === 0 ? REGIONS[regionOf(S.floor)] : null, first });
+    if (W) cardRoll(S, W, 'r' + regionOf(S.floor), 1); // offline floors add to the one offline roll instead
     goalHit(S, 'floor', null, 1);
     return true;
   }
@@ -715,7 +743,8 @@ const IdleCore = (() => {
     for (const n of W.nodes) { n.flash = Math.max(0, n.flash - dt); n.born += dt; }
     // Ki: a form drains it, base form refills it; at 0 Ki you drop back to base
     if (S.formOn > 0) {
-      S.ki -= FORM_TIERS[S.formOn].drain * C.kiDrain * dt;
+      S.ki -= FORM_TIERS[S.formOn].drain * C.kiDrain * (1 - cardVal(S, 'form' + S.formOn)) * dt;
+      cardRoll(S, W, 'form' + S.formOn, dt);
       if (S.ki <= 0) { S.ki = 0; S.formOn = 0; emit(W, { type: 'form', tier: 0, out: true }); }
     } else S.ki = Math.min(C.kiMax, S.ki + C.kiRegen * dt);
 
@@ -730,6 +759,7 @@ const IdleCore = (() => {
       while (W.discT >= step) {
         W.discT -= step;
         const [d, crit] = discHit(C);
+        if (crit >= 2) cardRoll(S, W, 'x_crit', 1);
         if (W.mode === 'mono' && W.mono) {
           const M = W.mono;
           const cx = Math.max(M.x - M.w / 2, Math.min(input.x, M.x + M.w / 2));
@@ -767,6 +797,7 @@ const IdleCore = (() => {
         if ((crit >= 2 || Math.random() < 0.05) && S.stats.play - (W.shoutT[h.id] || -99) > 6) { W.shoutT[h.id] = S.stats.play; emit(W, { type: 'shout', helper: h.id, text: hv.moves[Math.floor(Math.random() * hv.moves.length)] }); }
       }
       if (!fired) W.helperT[h.id] = hs.every * 0.8;
+      else cardRoll(S, W, 'f_' + h.id, fired);
     }
     for (const s of W.shots) {
       s.t += sdt;
@@ -842,7 +873,8 @@ const IdleCore = (() => {
     if (W.mode !== 'field' || !techReady(S, k)) return false;
     const T = TECHS[k];
     const C = calc(S);
-    S.tcd[k] = T.cd * C.techCd;
+    S.tcd[k] = T.cd * C.techCd * (1 - cardVal(S, 't_' + k));
+    cardRoll(S, W, 't_' + k, 1);
     S.stats.techs++; S.run.techUsed++;
     goalHit(S, 'tech', null, 1);
     const dmg = C.power * C.techMult * T.dmg * (k === 'spirit' ? C.spiritX : 1);
@@ -859,7 +891,7 @@ const IdleCore = (() => {
   function buyUp(S, key) {
     const l = lv(S, key);
     if (l >= UPS[key].max) return false;
-    const cost = upCost(key, l);
+    const cost = upCost(key, l, S);
     if (!canAfford(S, cost)) return false;
     pay(S, cost);
     S.up[key] = l + 1;
@@ -895,18 +927,53 @@ const IdleCore = (() => {
     if (n <= 0) return 0;
     S.parts[id] -= Math.round(n * C.ratio);
     let out = n;
-    if (C.doubleRefine > 0) {
-      if (n < 2000) { for (let i = 0; i < n; i++) if (Math.random() < C.doubleRefine) out++; }
-      else out += Math.round(n * C.doubleRefine);
+    // extra alloy: double (Zenkai, SUPER, this alloy's card), triple and 10x (Contracts); big batches use the average
+    const dbl = C.doubleRefine + cardVal(S, 'a' + MACH[id].t), extra = dbl + 2 * C.tripleRefine + 9 * C.tenRefine;
+    if (extra > 0) {
+      if (n < 2000) { for (let i = 0; i < n; i++) { const r = Math.random(); out += r < C.tenRefine ? 9 : r < C.tenRefine + C.tripleRefine ? 2 : r < C.tenRefine + C.tripleRefine + dbl ? 1 : 0; } }
+      else out += Math.round(n * extra);
     }
     S.alloy[id] = (S.alloy[id] || 0) + out;
+    cardRoll(S, null, 'a' + MACH[id].t, out);
     goalHit(S, 'refine', null, out);
     return out;
   }
+  // ---- Z points: Zeni -> Z points at a price that climbs with every point ever bought (S.zpBought)
+  // Zeni for points a..b-1 (0-based count of points bought before each one). The first zpFirst cost 1 Zeni together.
+  function zpZeni(a, b) {
+    const T = TUNE, F = (x) => (T.zpFlat / (T.zpPow + 1)) * Math.pow(x / T.zpFlat, T.zpPow + 1);
+    let z = 0;
+    if (a < T.zpFirst) { z += (Math.min(b, T.zpFirst) - a) / T.zpFirst; a = Math.min(b, T.zpFirst); }
+    if (a < T.zpFlat && b > a) { const e = Math.min(b, T.zpFlat); z += e - a; a = e; }
+    if (b > a) z += F(b - 0.5) - F(a - 0.5); // the curve, summed as its integral around each point
+    return z;
+  }
+  // what buying n more points costs (the very first buy always rounds up to the whole first-Zeni pack)
+  const zpBuyN = (S, n) => (S.zpBought < TUNE.zpFirst ? Math.max(n, TUNE.zpFirst - S.zpBought) : n);
+  const zpCost = (S, n) => Math.ceil(zpZeni(S.zpBought, S.zpBought + zpBuyN(S, n)) - 1e-9);
+  // the most points the Zeni on hand buys
+  function zpMax(S) {
+    if (S.zeni < zpCost(S, 1)) return 0;
+    let lo = 1, hi = 1;
+    while (zpCost(S, hi * 2) <= S.zeni && hi < 1e15) hi *= 2;
+    hi *= 2;
+    while (hi - lo > 1) { const m = Math.floor((lo + hi) / 2); if (zpCost(S, m) <= S.zeni) lo = m; else hi = m; }
+    return lo;
+  }
+  function buyZp(S, n) {
+    if (!has(S, 'companions') || n <= 0) return 0;
+    n = zpBuyN(S, n);
+    const cost = zpCost(S, n);
+    if (S.zeni < cost) return 0;
+    S.zeni -= cost;
+    S.zp += n;
+    S.zpBought += n;
+    return n;
+  }
   function hire(S, id) {
     const h = HELPER[id];
-    if (!has(S, 'companions') || S.mono.tier < h.mono || cl(S, id) || S.zeni < h.hire) return false;
-    S.zeni -= h.hire;
+    if (!has(S, 'companions') || S.mono.tier < h.mono || cl(S, id) || S.zp < h.hire) return false;
+    S.zp -= h.hire;
     S.helpers[id] = { lv: 1, dmg: 0, spd: 0, multi: 0, crit: 0, trait: 0 };
     return true;
   }
@@ -916,8 +983,8 @@ const IdleCore = (() => {
     c[key] = c[key] || 0;
     if (c[key] >= COMP_UPS[key].max) return false;
     const cost = compUpCost(h, key, c[key]);
-    if (S.zeni < cost) return false;
-    S.zeni -= cost;
+    if (S.zp < cost) return false;
+    S.zp -= cost;
     c[key]++;
     return true;
   }
@@ -937,9 +1004,10 @@ const IdleCore = (() => {
       S.tcd = {};
     } else {
       if ((S.buffs[id] || 0) + I.dur > BUFF_MAX) return false;
-      S.buffs[id] = (S.buffs[id] || 0) + I.dur;
+      S.buffs[id] = Math.min(BUFF_MAX, (S.buffs[id] || 0) + I.dur * (1 + cardVal(S, 'i_' + id)));
     }
-    S.items[id]--;
+    if (!(id === 'senzu' && Math.random() < cardVal(S, 'i_senzu'))) S.items[id]--;
+    cardRoll(S, W, 'i_' + id, 1);
     S.run.itemsUsed++;
     emit(W, { type: 'item', id });
     return true;
@@ -977,7 +1045,9 @@ const IdleCore = (() => {
         S.stats.supers++;
       }
     }
+    if (kind === 'item' && C.superFromItem > 0) { const s = sround(n * C.superFromItem); if (s) { S.chests.super += s; got.superChest = s; } }
     if (caps) addCaps(S, caps);
+    cardRoll(S, null, 'x_chest', n);
     return { kind, n, got, caps };
   }
 
@@ -991,7 +1061,8 @@ const IdleCore = (() => {
     S.stats.bulma++;
     const r = Math.random();
     let text, caps = 0;
-    const income = Math.round(120 * partValue(floorPool(S.floor)[0][0]) * C.valueMult);
+    const income = Math.round(120 * partValue(floorPool(S.floor)[0][0]) * C.valueMult * (1 + cardVal(S, 'x_bulma')));
+    cardRoll(S, W, 'x_bulma', 1);
     if (r < 0.35) { S.zeni += income; text = '+' + fmt(income) + ' Zeni'; }
     else if (r < 0.6) { S.chests.item += 3; text = '+3 Item chests'; }
     else if (r < 0.82) {
@@ -1043,7 +1114,7 @@ const IdleCore = (() => {
   }
   function hitMono(S, W, dmg, by, x, y, crit, pierce) {
     const M = W.mono;
-    const d = Math.min(M.hp, effDmg(dmg, M.armor * (1 - (pierce || 0))));
+    const d = Math.min(M.hp, effDmg(dmg * (1 + cardVal(S, 'x_mono')), M.armor * (1 - (pierce || 0))));
     M.hp -= d;
     M.flash = 0.06;
     S.stats.dmg += d;
@@ -1068,6 +1139,7 @@ const IdleCore = (() => {
       S.mono.readyAt = now + TUNE.monoWinCooldown * 1000;
       // a new form step opens: the FORM button moves up to it
       if (FORM_TIERS.some((f, k) => f && f.mono === S.mono.tier && k > (S.formSel || 0))) S.formSel = formsOpenTop(S);
+      if (has(S, 'cards')) cardGive(S, W, 'x_mono');
     } else { S.mono.dmg = M.max - M.hp; S.mono.best = frac; }
     W.mode = 'field';
     W.nodes = W.saved || [];
@@ -1114,7 +1186,7 @@ const IdleCore = (() => {
     return Math.floor(Math.pow(S.level - 15, 1.25) * (1 + 0.1 * S.mono.tier) * (1 + S.maxFloor / 200) * (1 + S.mono.best * 0.5) * C.zkMult);
   }
   // what Zenkai keeps; everything else starts over
-  const KEEP = ['caps', 'skillPts', 'mono', 'helpers', 'items', 'chests', 'meter', 'ws', 'sup', 'store', 'skills', 'wishes', 'autoTech', 'zenkai', 'bulma', 'goals', 'seen', 'stats', 'opt', 'created', 'fighter', 'formSel'];
+  const KEEP = ['caps', 'skillPts', 'mono', 'helpers', 'items', 'chests', 'meter', 'ws', 'sup', 'store', 'skills', 'wishes', 'autoTech', 'zenkai', 'bulma', 'goals', 'seen', 'stats', 'opt', 'created', 'fighter', 'formSel', 'zp', 'zpBought', 'cards'];
   function zenkai(S, W, now) {
     const g = zenkaiGain(S);
     if (g <= 0 || W.mode !== 'field') return false;
@@ -1132,6 +1204,7 @@ const IdleCore = (() => {
     clearField(W);
     W.spawnT = 0;
     emit(W, { type: 'zenkai', gain: g });
+    cardRoll(S, W, 'x_zenkai', 1);
     return true;
   }
   function buyZk(S, id) {
@@ -1144,6 +1217,138 @@ const IdleCore = (() => {
     S.zenkai.up[id] = l + 1;
     return true;
   }
+
+  // ------------------------------------------------------------------ Contracts (Monolith 8; reset by Zenkai)
+  // Bulma orders one kind of Capsule Alloy at a time; every order asks for more. Each pays Contract Points (CP).
+  // S.ct = { done, pts, up: {id: level}, cur: {id, n}, rerollAt }
+  // Contract upgrades: CP cost = base x g^level (x the Zenkai discount); per: true ones cost CT_PER[level].
+  // max is the base cap; the Zenkai booster "Contract Upgrade Caps" raises every cap.
+  const CT_PER = [10, 500, 1500, 3000, 5000, 8500, 12500, 14000, 17000, 20000, 23000, 26000, 29000, 32000, 35000];
+  const CT_UPS = [
+    { id: 'cdisc', name: 'Disc Damage per Contract', desc: '+1% disc damage for every Contract done this run', fx: [['discPerCt', 0.01]], max: 1, per: true, mono: 8 },
+    { id: 'ctref3', name: 'Triple Refine Chance', desc: '+1% chance a refine gives x3 alloy', fx: [['tripleRefine', 0.01]], max: 5, base: 14, g: 1.3, mono: 8 },
+    { id: 'ctcrit', name: 'Disc Crit Chance', desc: '+2% disc crit chance', fx: [['critCh', 0.02]], max: 5, base: 14, g: 1.3, mono: 8 },
+    { id: 'cttcd', name: 'Technique Recharge', desc: '-3% Technique cooldowns', fx: [['techCdPct', 0.03]], max: 5, base: 14, g: 1.3, mono: 8 },
+    { id: 'ctxp', name: 'Power Level Gain', desc: '+10% Power Level XP', fx: [['xpPct', 0.1]], max: 5, base: 14, g: 1.3, mono: 8 },
+    { id: 'ctcritd', name: 'Crit Damage', desc: '+8% crit damage', fx: [['critDmg', 0.08]], max: 5, base: 14, g: 1.3, mono: 8 },
+    { id: 'ctdisc', name: 'Disc Damage', desc: '+15% disc damage', fx: [['discPct', 0.15]], max: 3, base: 34, g: 1.3, mono: 8 },
+    { id: 'ctalloy', name: 'Upgrade Alloy Cost', desc: '-5% alloy for Disc upgrades', fx: [['alloyCostPct', 0.05]], max: 3, base: 34, g: 1.3, mono: 8 },
+    { id: 'ctzk', name: 'Zenkai Point Gain', desc: '+10% Zenkai Points', fx: [['zkPct', 0.1]], max: 3, base: 34, g: 1.3, mono: 8 },
+    { id: 'ctref10', name: '10x Refine Chance', desc: '+1% chance a refine gives x10 alloy', fx: [['tenRefine', 0.01]], max: 1, base: 60, g: 1.3, mono: 8 },
+    { id: 'ctech', name: 'Technique Damage per Contract', desc: '+1% Technique damage for every Contract done this run', fx: [['techPerCt', 0.01]], max: 1, per: true, mono: 12 },
+    { id: 'ctsell', name: 'Part Sell Price', desc: '+15% Zeni from selling parts', fx: [['valuePct', 0.15]], max: 10, base: 20, g: 1.3, mono: 12 },
+    { id: 'ctfight', name: 'Z-Fighter Damage', desc: '+4% Z-Fighter damage', fx: [['compPct', 0.04]], max: 5, base: 20, g: 1.3, mono: 12 },
+    { id: 'ctultra', name: 'Disc and Z-Fighter Crit', desc: '+1% crit chance for the disc and Z-Fighters', fx: [['critCh', 0.01], ['compCritCh', 0.01]], max: 5, base: 20, g: 1.3, mono: 12 },
+    { id: 'ctyield', name: 'Salvage Yield', desc: '+3% parts from machines', fx: [['yieldPct', 0.03]], max: 5, base: 20, g: 1.3, mono: 12 },
+    { id: 'ctcaps', name: 'Rainbow Capsules', desc: '+3% Rainbow Capsules from everything', fx: [['capsPct', 0.03]], max: 5, base: 20, g: 1.3, mono: 12 },
+    { id: 'ctbulma', name: 'Loot Bulma Visits', desc: 'Loot Bulma flies by 3% more often', fx: [['bulmaPct', 0.03]], max: 5, base: 40, g: 1.3, mono: 14 },
+    { id: 'ctspeed', name: 'Game Speed', desc: '+1% speed for everything', fx: [['speedPct', 0.01]], max: 10, base: 40, g: 1.3, mono: 14 },
+    { id: 'ctchest', name: 'Chest Meters', desc: '+2% chest meter fill', fx: [['chestPct', 0.02]], max: 10, base: 60, g: 1.3, mono: 16 },
+    { id: 'ctsuper', name: 'Hidden SUPER Chests', desc: '+0.15% chance an Item chest also holds a SUPER chest', fx: [['superFromItem', 0.0015]], max: 10, base: 60, g: 1.3, mono: 16 }
+  ];
+  const CT_BY = Object.fromEntries(CT_UPS.map((u) => [u.id, u]));
+  const newCt = () => ({ done: 0, pts: 0, up: {}, cur: null, rerollAt: 0 });
+  const ctOpen = (S, u) => has(S, 'contracts') && S.mono.tier >= u.mono;
+  const ctMax = (S, u, B) => u.max + b0(B || bonus(S), 'ctCap');
+  function ctUpCost(S, u, l, B) {
+    const raw = u.per ? CT_PER[Math.min(l, CT_PER.length - 1)] + Math.max(0, l - CT_PER.length + 1) * 3000 : u.base * Math.pow(u.g, l);
+    return Math.max(1, Math.round(raw * Math.max(0.2, 1 - b0(B || bonus(S), 'ctUpPct'))));
+  }
+  // the next order: alloy of one machine this run can farm (the newest ten kinds you've reached), more each time
+  function ctMake(S, B) {
+    const top = floorPool(S.maxFloor)[0][0];
+    const lo = Math.max(planetOf(S.maxFloor) * 25, top - 9);
+    const t = lo + Math.floor(Math.random() * (top - lo + 1));
+    const n = Math.max(1, Math.ceil(((10 + 2 * t) * Math.pow(1.1, S.ct.done)) / (1 + b0(B || bonus(S), 'ctCostPct'))));
+    return { id: MACHINES[t].id, n };
+  }
+  function ctCurrent(S) {
+    if (!has(S, 'contracts')) return null;
+    if (!S.ct.cur) S.ct.cur = ctMake(S);
+    return S.ct.cur;
+  }
+  // hand the alloy over: CP paid, a 2x / 3x / 5x / 10x roll (the best one that hits), and the next order
+  function ctDeliver(S, W) {
+    const o = ctCurrent(S);
+    if (!o || (S.alloy[o.id] || 0) < o.n) return null;
+    const B = bonus(S);
+    S.alloy[o.id] -= o.n;
+    let mult = 1;
+    for (const [k, m] of [['ct10x', 10], ['ct5x', 5], ['ct3x', 3], ['ct2x', 2]]) if (Math.random() < b0(B, k)) { mult = m; break; }
+    const pts = Math.round((10 + b0(B, 'ctPts')) * mult * (1 + cardVal(S, 'x_contract')));
+    S.ct.pts += pts;
+    S.ct.done++;
+    S.ct.cur = ctMake(S, B);
+    if (W) emit(W, { type: 'contract', pts, mult });
+    cardRoll(S, W, 'x_contract', 1);
+    return { pts, mult };
+  }
+  // a different order, free once a minute (orders can ask for alloy you'd rather keep)
+  function ctReroll(S, now) {
+    if (!has(S, 'contracts') || now < S.ct.rerollAt) return false;
+    S.ct.cur = ctMake(S);
+    S.ct.rerollAt = now + 60 * 1000;
+    return true;
+  }
+  function buyCt(S, id) {
+    const u = CT_BY[id], B = bonus(S);
+    const l = S.ct.up[id] || 0;
+    if (!u || !ctOpen(S, u) || l >= ctMax(S, u, B)) return false;
+    const c = ctUpCost(S, u, l, B);
+    if (S.ct.pts < c) return false;
+    S.ct.pts -= c;
+    S.ct.up[id] = l + 1;
+    return true;
+  }
+
+  // ------------------------------------------------------------------ Cards (Monolith 10; kept through Zenkai)
+  // A card for every machine, alloy, Z-Fighter, form step, Technique, item and region, plus a few misc ones.
+  // Owning one gives +5% to its own thing; a Transformed card (golden, paid in Rainbow Capsules) gives x3 that.
+  // Drops: each action rolls once, its chances added up (a kill dropping 12 parts rolls 12 x the per-part chance).
+  // Offline: one roll per missing card with everything you did while away added up (so at most one of each).
+  // S.cards = { id: 1 (owned) | 3 (Transformed) }
+  const CARDS = [];
+  const card = (id, kind, name, how, perk, p, caps, extra) => CARDS.push(Object.assign({ id, kind, name, how, perk, p, caps }, extra));
+  MACHINES.forEach((m) => card('m' + m.t, 'machine', m.name, 'Destroy ' + m.name + 's', 'parts from ' + m.name + 's', 1 / (250 * Math.pow(1.12, m.t)), 15 + 3 * m.t, { m: m.id }));
+  MACHINES.forEach((m) => card('a' + m.t, 'alloy', m.part + ' Alloy', 'Refine ' + m.part + ' Alloy (or Smelt them)', 'double refine chance for ' + m.part + ' Alloy', 1 / (200 * Math.pow(1.1, m.t)), 15 + 3 * m.t, { m: m.id }));
+  HELPERS.forEach((h) => card('f_' + h.id, 'fighter', h.name, 'Let ' + h.name + ' fight', h.name + "'s damage", 1 / 20000, 80, { h: h.id }));
+  for (let k = 1; k < FORM_TIERS.length; k++) card('form' + k, 'form', formName(k), 'Stay in this form', 'less Ki drain in this form', 1 / 900, 100, { tier: k });
+  for (const k of TECH_KEYS) card('t_' + k, 'tech', TECHS[k].name, 'Use ' + TECHS[k].name, 'faster ' + TECHS[k].name + ' cooldown', 1 / 120, 60, { tk: k });
+  for (const k of ITEM_KEYS) card('i_' + k, 'item', ITEMS[k].name, 'Use ' + ITEMS[k].name, k === 'senzu' ? 'chance to keep the Senzu Bean' : 'longer ' + ITEMS[k].name, 1 / 25, 40, { ik: k });
+  REGIONS.forEach((r, i) => card('r' + i, 'region', r.name, 'Go down floors in ' + r.name, 'Power Level XP in ' + r.name, 1 / 60, 50, { region: i }));
+  card('x_mono', 'misc', 'Katchin', 'Break a Katchin Monolith (always drops)', 'damage to the Monolith', 0, 120);
+  card('x_bulma', 'misc', 'Loot Bulma', 'Catch Loot Bulma', "Loot Bulma's Zeni prize", 1 / 8, 100);
+  card('x_zenkai', 'misc', 'Zenkai', 'Go Zenkai', 'Zenkai Points', 1 / 3, 120);
+  card('x_chest', 'misc', 'Capsule Chest', 'Open chests', 'chest meter fill', 1 / 300, 100);
+  card('x_contract', 'misc', "Bulma's Order", 'Finish Contracts', 'Contract Points', 1 / 15, 100);
+  card('x_goal', 'misc', 'Training Goal', 'Claim Training Goals', 'Training Goal Zeni', 1 / 8, 80);
+  card('x_crit', 'misc', 'Critical Hit', 'Land SUPER crits or better with the disc', 'crit damage', 1 / 4000, 100);
+  const CARD = Object.fromEntries(CARDS.map((c) => [c.id, c]));
+  const CARD_KINDS = [['machine', 'MACHINES'], ['alloy', 'ALLOY'], ['fighter', 'Z-FIGHTERS'], ['form', 'FORMS'], ['tech', 'TECHNIQUES'], ['item', 'ITEMS'], ['region', 'REGIONS'], ['misc', 'MISC']];
+  const CARD_PERK = 0.05;
+  // a card's bonus: 0, +5% owned, +15% Transformed
+  const cardVal = (S, id) => (S.cards && S.cards[id] ? CARD_PERK * S.cards[id] : 0);
+  function cardGive(S, W, id) {
+    if (S.cards[id]) return false;
+    S.cards[id] = 1;
+    if (W) emit(W, { type: 'card', id });
+    return true;
+  }
+  // one roll for an action that counts `n` times toward this card (n parts, n seconds, n shots...)
+  function cardRoll(S, W, id, n) {
+    if (!has(S, 'cards') || S.cards[id]) return false;
+    const c = CARD[id];
+    if (!c || !c.p) return false;
+    return Math.random() < c.p * n ? cardGive(S, W, id) : false;
+  }
+  const transformCost = (id) => CARD[id].caps;
+  function transformCard(S, id) {
+    if (S.cards[id] !== 1 || S.caps < transformCost(id)) return false;
+    S.caps -= transformCost(id);
+    S.cards[id] = 3;
+    return true;
+  }
+  const cardCount = (S) => { let n = 0, g = 0; for (const k of Object.keys(S.cards)) { n++; if (S.cards[k] === 3) g++; } return [n, g]; };
 
   // ------------------------------------------------------------------ Training Goals (5 a day)
   const dayOf = (now) => { const d = new Date(now); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
@@ -1180,8 +1385,9 @@ const IdleCore = (() => {
     const G = goalsFor(S, now);
     const g = G.list[0];
     if (!g || g.have < g.n) return false;
-    const z = goalReward(S);
+    const z = Math.round(goalReward(S) * (1 + cardVal(S, 'x_goal')));
     S.zeni += z;
+    cardRoll(S, W, 'x_goal', 1);
     G.done++;
     G.list.shift();
     let bonus;
@@ -1211,6 +1417,9 @@ const IdleCore = (() => {
     t *= TUNE.offlineEff * C.offlineMult;
     if (!has(S, 'companions')) return out;
     const before = { item: S.chests.item, super: S.chests.super };
+    // cards: everything done while away adds up into ONE roll per missing card (so 200% still gives one card)
+    const odds = {}, tAll = t;
+    const addOdds = (id, n) => { if (CARD[id] && !S.cards[id]) odds[id] = (odds[id] || 0) + CARD[id].p * n; };
     for (let guard = 0; guard < 300 && t > 0.5; guard++) {
       const pool = floorPool(S.floor);
       let perKill = 0;
@@ -1234,6 +1443,7 @@ const IdleCore = (() => {
         S.seen[id] = 1;
         S.run.got[id] = (S.run.got[id] || 0) + q;
         out.parts[id] = (out.parts[id] || 0) + q;
+        addOdds('m' + m, q);
         out.xp += n * machXp(m) * 0.2; // Power Level mostly comes from your own training
       }
       out.kills += kills;
@@ -1242,9 +1452,12 @@ const IdleCore = (() => {
       if (has(S, 'itemChests')) { S.meter.item += share / TUNE.itemChestEvery; S.chests.item += Math.floor(S.meter.item); S.meter.item %= 1; }
       if (has(S, 'superChests')) { S.meter.super += share / TUNE.superChestEvery; S.chests.super += Math.floor(S.meter.super); S.meter.super %= 1; }
       S.floorKills += kills;
-      if (goOn && S.floorKills >= floorNeed(S, S.floor, C)) { if (descend(S, null)) out.floors++; }
+      if (goOn && S.floorKills >= floorNeed(S, S.floor, C)) { if (descend(S, null)) { out.floors++; addOdds('r' + regionOf(S.floor), 1); } }
       else break;
     }
+    for (const h of HELPERS) if (cl(S, h.id)) { const hs = helperStats(S, C, h); addOdds('f_' + h.id, (tAll / hs.every) * hs.shots); }
+    out.cards = [];
+    if (has(S, 'cards')) for (const id of Object.keys(odds)) if (Math.random() < odds[id] && cardGive(S, null, id)) out.cards.push(id);
     out.chests.item = S.chests.item - before.item;
     out.chests.super = S.chests.super - before.super;
     if (out.xp) addXp(S, null, out.xp);
@@ -1279,8 +1492,10 @@ const IdleCore = (() => {
     newState, migrate, calc, bonus, planetsOpen, upCost, canAfford, partReachable, newWorld, spawnNode, tick, canDescend, setFloor,
     floorsFor, farmFloor, useTech, buyUp, buyWs, sell, refine, hire, upHelper, buyItem, useItem, openChests, catchBulma,
     monoReady, monoReward, startMono, quitMono, buySkill, buyStore, checkWishes, zenkaiGain, zenkai, buyZk,
-    goalsFor, goalReward, claimGoal, offline, fmt, fmtTime,
-    FIGHTERS, FORM_TIERS, fighterOf, formLook, formOpen, formsOpenTop, transform, selectForm, helperView
+    goalsFor, goalReward, claimGoal, offline, fmt, fmtTime, zpZeni, zpCost, zpMax, buyZp,
+    FIGHTERS, FORM_TIERS, fighterOf, formLook, formOpen, formsOpenTop, transform, selectForm, helperView,
+    CT_UPS, CT_BY, ctOpen, ctMax, ctUpCost, ctCurrent, ctDeliver, ctReroll, buyCt,
+    CARDS, CARD, CARD_KINDS, CARD_PERK, cardVal, transformCost, transformCard, cardCount
   };
 })();
 if (typeof module !== 'undefined') module.exports = IdleCore;
