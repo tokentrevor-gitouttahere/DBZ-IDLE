@@ -103,7 +103,7 @@ BRAINSTORM: KI BEAM (right click) - Shulk's idea, not built yet
     - Balance knobs for core.js: TUNE.beamKi (pool), kiRegen, kiCostPerSec, beamDmgShare (vs disc Ki Power),
       beamLen (game px), beamWidth, burnChance, burnDps, burnTime.
 
-BUILT v0.5 (local, NOT pushed: owner says "deploy" first): CONTRACTS + CARDS (from the shminer wiki, translated)
+PUBLISHED v0.5 (GitHub Pages, commit 5557525, 2026-10-27): CONTRACTS + CARDS (from the shminer wiki, translated)
   Owner's answers: Contracts at Monolith 8, Cards at Monolith 10; one alloy kind per contract; a card = +5% to its
   own thing, no card-count bonus; gilding is called TRANSFORM (x3 effect, Rainbow Capsules, gold frame + glint);
   Contract boosters = a new Zenkai tier (CONTRACTS).
@@ -123,7 +123,7 @@ BUILT v0.5 (local, NOT pushed: owner says "deploy" first): CONTRACTS + CARDS (fr
   Transform (gold frame), form cards with the fighter's art, NEW CARD banner, Zenkai CONTRACTS tier.
   Not mapped (no equivalent here): pets, fishing, archaeology, arcanist, Transmuter Bomb (the Smelter stands in).
 
-BUILT v0.5 (local, NOT pushed: owner says "deploy" first): Z POINTS + Z-FIGHTERS
+PUBLISHED v0.5 (GitHub Pages, commit 5557525, 2026-10-27): Z POINTS + Z-FIGHTERS
   Companions are now Z-Fighters (all player-facing text; code ids stay helpers/companions). Zeni buys Z points,
   Z points hire and upgrade them. Z points + zpBought (lifetime points bought, sets the price) survive Zenkai.
   Price (TUNE.zpFirst/zpFlat/zpPow): first Zeni buys 10, then 1 Zeni each to 750 bought, then point n costs
