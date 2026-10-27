@@ -1,0 +1,203 @@
+DBZ IDLE HANDOFF (updated 2026-10-27, v0.3)
+
+LIVE: https://claude.ai/artifact/TPJgPWV98FzjPtZhsXhAyQ (private; share from the page's Share menu)
+GALLERY: https://claude.ai/artifact/PEYRj27UXoCtyhcwc2QkEt
+
+BUILD
+  python tools/build_sprites.py [--sheet out.png]   machines atlas -> src/gen_sprites.js (from assets/ zips + previews)
+  python tools/build_tiles.py                       level tiles -> src/gen_tiles.js (check the look in dist/preview.html)
+  python tools/extract_rigs.py <fight-sim.html>     fighter rigs -> src/gen_rigs.js
+  python tools/build.py                             src/* -> dist/dbz-idle.html (published page), dist/preview.html,
+                                                    dist/gallery.html (all 480 machine variants)
+  node tools/crit_check.js                          how crit chance splits into tiers
+  node tools/sim.js 24 0.7                          pacing bot (SIM_DUMP=1 prints the final state)
+  Local test: the "dbz-idle" server in ../.claude/launch.json serves dist/ on :8765 (open /preview.html)
+
+FILES
+  src/core.js     rules + every tuning number (TUNE, tables). No DOM.
+  src/render.js   canvas: tiled levels, machine variants (paint/marks), effects, Bulma's plane, Monolith, disc
+  src/ui.js       HUD, panels, input, save/offline. Console: DBZIdle.S / DBZIdle.W
+  IDLE_DESIGN.md  full design; ASSETS.md where the art came from
+
+DONE (v0.2, owner's feedback round 2)
+  Ore -> machines (20 sprites x paints/marks = 50 machines, each drops its own part). Floors (2 planets x 50,
+  10 regions from the tilesets), no old machines on later floors (go back up to farm). Bombs -> Techniques
+  (cooldowns). Companions get damage/speed/multishot. Rainbow Capsules (earned only). Item + SUPER chests from
+  damage meters. Skill tree (M3, a row per 2 Monoliths). Workshop + Workshop II, Capsule Store, Buu Wishes,
+  Loot Bulma visitor, Monolith rewards/unlock table, level cap +5 per Monolith. v1 saves migrate.
+  Checked at 390x844: mining, variants, techniques panel, companions, workshop, skill tree, chests, Monolith panel.
+  Checked in node: offline (floors descend), v1->v2 migration, Zenkai keep/reset, 24h pacing sim.
+
+PUBLISHED v0.3 (2026-10-27)
+  Levels rebuilt: one floor tile family per region + noise-shaped patches + set pieces down the sides (render.js
+  FEAT: road, yard, junk, wreck, camp, outcrop, grove, ruins, crystals, reef, ship, sea, crater, lava, path).
+  Damage numbers on every hit (disc white, crits gold/big, super crits red "!", companions, techniques).
+  Patterns follow each animation frame (published already in v0.2.1).
+  Crit tiers past 100% (CRIT x2, SUPER x3, ULTRA x4, MEGA x5...; 2% chance buys 1% above 100%), one roll per hit.
+  Companion crit chance + Trait upgrades; traits: Yamcha steals Zeni (NEW, stand-in Goku art), Krillin pierces armor,
+  Gohan crits, Piccolo's beam hits a 2nd machine, Vegeta's pride = extra parts, Nappa splashes. Speech bubbles. Tapping an open tab's nav button again closes it.
+  Monolith damage carries over between attempts (and Zenkai) until it breaks. Red Ribbon Beacon (Disc): faster respawn, same cap.
+  v0.3.1: double-tap a machine in Bulma's Lab -> go to the floor it spawns on most (within this run's best floor), STAY on.
+
+v0.4 (2026-10-27, local build, not published yet)
+  Field variety: core.js pickMachine(S, W) spawns any floor-pool type missing from the field first.
+  Companion projectiles: render.js drawShot()/shotPos(): Yamcha Spirit Ball (weave + trail), Krillin Kienzan (spin),
+  Gohan Masenko, Piccolo Special Beam Cannon (spiral), Vegeta small purple barrage blasts, Nappa Break Cannon orb.
+  Vegeta's Technique (owner): every 0.6s, 0.05x power per blast, 2 blasts at Trait 0, doubling per Trait level to 64
+  (Trait 5); Trait levels past that add +10% blast damage each. Keeps a fixed Saiyan Pride (+50% parts) on hits.
+  No armor on Planet 1 machines (owner): core.js machArmor = 0 for types 0-24; only the Monolith has armor until
+  Planet 2 (types 25+, formula unchanged). Planet 1 machHp x1.15. Measured first: with armor, the disc lost <=1% of
+  its damage on every Planet 1 type (the disc outgrows armor fast); 8-run sims of old / no armor / x1.15 / x1.3 /
+  x1.45 HP were all within sim noise (floor 30 at 167-217 min, ~23.3 Monoliths in 24h). Krillin's armor pierce
+  now only matters on the Monolith and Planet 2.
+  Owner wants every change SHOWN in the game (screenshots/zooms from the preview), not just described.
+
+NOT DONE / NOT CHECKED
+  Not inside the fight sim app. Not tested on a real phone. A full Monolith fight and Bulma catch were not
+  clicked through in the browser this round (rules are covered by the sim). Buu Wishes and Store panels not
+  screenshotted. No sound.
+
+NEXT
+  Owner's answers to IDLE_DESIGN.md section 21. Friends' playtest -> retune TUNE (Monolith growth, chests).
+  More planets: add ROSTER rows (more paints/marks) + REGIONS recipes in build_tiles.py.
+
+BRAINSTORM: KI BEAM (right click) - Shulk's idea, not built yet
+  Shulk's spec
+    - Right click (instead of the disc) fires a Ki Beam: a long beam covering a large vertical stretch of the
+      screen, about as wide as a small machine at base. Hits every machine it touches.
+    - Unlocks with a Monolith clear, together with a new Ki system that powers it.
+    - The player picks the look: Kamehameha, Galick Gun, Death Beam, Masenko, Special Beam Cannon, Final Flash...
+      Same function, different visual (colour, core, charge glow, tip).
+    - Its own upgrades: damage, length, width, split into 2/3/4/5 beams, burn chance (burn = damage over time).
+    - Ki: a small pool at first (2-3 s of beaming). Upgrades: Ki cost per second, recharge speed, recharge amount,
+      max Ki, and so on.
+    - Works on the Monolith, but the disc and the beam can't fire at the same time.
+
+  Questions to settle
+    - Phones have no right click. Options: (a) a BEAM / DISC toggle button by the Techniques column; (b) hold with
+      a second finger; (c) long-press switches. Desktop keeps right click. (a) is the clearest.
+    - Aim: straight up from the finger (like the reference shot), toward the top of the screen, or along a drag?
+      "Large vertical portion" suggests up from the touch point; dragging sideways sweeps it.
+    - Does Ki reset on Zenkai (Shulk listed "ki amount" with things that reset), with the Ki upgrades permanent?
+    - Unlock slot: the Monolith order is Companions, Workshop, Techniques, Item chests, SUPER chests, Workshop II,
+      Store, Buu Wishes, Namek (10). The beam could open at Monolith 6 (alongside Workshop II) or 9.
+
+  Ideas around it
+    - Charge-up: holding before release builds a short charge (x1.5 damage), like a Kamehameha wind-up.
+    - Splits fan out at a fixed angle (5 beams = a spread); each split beam does a share, so split trades focus
+      for coverage. Good against swarms, worse on the Monolith (where only one beam can touch it).
+    - Burn stacks up to N times on a machine; burning machines glow orange; a skill node "Scorched Earth"
+      makes burn spread to neighbours on death.
+    - Beam crits use the same tier system (CRIT, SUPER, ULTRA...), its own crit chance stat.
+    - Beam clash on the Monolith: at the start of a fight, mash to win a short beam struggle for bonus damage.
+    - Ki items: a Ki Drink (refill), "Kaio-ken Ki" buff (beam x2 but drains Ki twice as fast).
+    - Companions with a matching beam (Vegeta + Galick Gun, Piccolo + Special Beam Cannon) get a small bonus while
+      that beam is selected: a reason to pick a look beyond style.
+    - Beam looks as unlockables: SUPER chest drops or Capsule Store cosmetics (cosmetic only, no power).
+    - Upgrade homes: beam damage/length/width in the Disc tab (reset per run); split, burn and Ki pool in the
+      Workshop (permanent); a skill tree branch for it.
+    - Balance knobs for core.js: TUNE.beamKi (pool), kiRegen, kiCostPerSec, beamDmgShare (vs disc Ki Power),
+      beamLen (game px), beamWidth, burnChance, burnDps, burnTime.
+
+BUILT v0.4 (local, not published): CHOOSE FIGHTER + FORMS + KI
+  Owner's ladders: Goku Base>SSJ>SSJ2>SSJ3>God>Blue>MUI; Vegeta Base>SSJ>Majin>God>Blue>Blue Evolution>Ultra Ego.
+  core.js FIGHTERS (looks per step: rig + recoloured hair + aura colour, sim colours), FORM_TIERS (shared numbers:
+  x2/3/4.5/6/8/11 disc damage, 4/6/8/9/10/12 Ki a second, open at Monolith 2/5/8/11/14/18; also in the UNLOCKS
+  table). Ki: TUNE.kiMax 100, kiRegen 5/s in base form, kiMinStart 25; 0 Ki = back to base. Workshop: Ki Reserve,
+  Ki Recovery (tier 1), Ki Control (tier 2). transform()/selectForm(); new form step -> FORM button moves to it.
+  S.fighter (null = pick on next load, also for old saves), S.ki, S.formSel, S.formOn (0 on load / offline).
+  Zenkai keeps fighter + formSel. Fighter is cosmetic only; Vegeta -> Goku in Vegeta's slot (helperView: Goku rig,
+  "Desperate Blasts", blue blasts, Kamehameha!/Dragon Fist!). Vegeta's base/SSJ/Majin use the Buu Saga rigs, his
+  God-tier forms vegeta-namek with recoloured hair (what the sim uses for Super-saga Vegeta); Goku's God/Blue/MUI
+  are goku-saiyan with recoloured hair, SSJ3 is goku-buu-ssj3-hq.
+  UI: fighter pick at start (modal can't be dismissed), Menu > Options > Fighter toggle, FORM panel under Techniques
+  (FORM button, < > step pickers, Ki bar; key F), HUD portrait = fighter in current form (idle pose), disc aura
+  (lightning on SSJ2/Majin/Evo), transform flash + banner. Stats sheet shows fighter/form/Ki.
+  Sim bot transforms on full Ki, saves Ki 40s before a Monolith, transforms at fight start. 6 x 24h runs:
+  23-24 Monoliths, floor 100 (same as before forms; Monoliths are cooldown-gated); floor 30 a bit sooner.
+  Fixes (owner): SSJ3 Goku's head art faced backwards (also in the fight sim's goku-buu-ssj3-hq): extract_rigs.py
+  HEAD_FLIP mirrors that rig's head shapes. Lightning on the fighter: ui.js drawBolts() flickers bolts over the HUD
+  portrait in spark forms (SSJ2 Goku, Majin Vegeta; Blue Evolution too). Preview save erased for a fresh start.
+  Shown in the preview: pick screen, Majin Vegeta live (banner, aura, Goku companion), every form x both fighters
+  (HUD portrait + aura), Options toggle. Not checked: a real phone, a full Monolith fight in a form.
+
+PLAN: FIGHTER + FORMS (proposed 2026-10-27, waiting on the owner's answers; details in the brainstorms below)
+  Owner's answers (2026-10-27): 1 pick the fighter at the start of the game, toggle it later in an options menu.
+           2 Forms DRAIN KI (so Ki system first). 3 Fighter choice is COSMETIC ONLY (+ the companion swap, no perk).
+           4 Fight sim = C:\Users\Owner\Documents\claudeai\DBZ Fight Sim\src\index.m18.html (v30, highest build).
+           ("DBZ IDLE\DBZ Blazing Sun" is only the sim's m19/v31 patch folder, no page in it.)
+  Phase 1  Art: DONE (local). extract_rigs.py now also takes goku-buu, goku-buu-ssj3-hq, vegeta-namek,
+           vegeta-buu-base/-ssj/-ssj2, HAIRKITS and POSES.idle. render.js rigSprite(id, w, h, {pose:'idle', kit,
+           hair}) draws them like the sim (sim rules: a rig made for the form; else the fighter's own hair kit; else
+           the base rig with its hair recoloured #ffd23f). Contact sheet of all 13 looks shown to the owner.
+           Page grew 0.80 -> 1.06 MB. Proposed ladders (owner to confirm): Goku goku-saiyan / goku-ssj / goku-saiyan
+           gold hair (SSJ2, as the sim draws Cell Goku) / goku-buu-ssj3-hq (same orange gi); Vegeta all Buu Saga:
+           vegeta-buu-base / vegeta-buu-ssj / vegeta-buu-ssj2 (Majin).
+  Phase 2  Choose Fighter: S.fighter (default 'goku', kept through Zenkai), two-card pick on first launch, Menu ->
+           Fighter, HUD portrait follows the fighter, Goku takes Vegeta's companion slot (Desperate Blasts, small
+           blue ki blasts, moves Kamehameha!/Dragon Fist!), same key so upgrades carry over.
+  Phase 3  Ki system + Ki Beam (Shulk's spec): Goku = Kamehameha, Vegeta = Galick Gun.
+  Phase 4  Forms: transform button by Techniques. Goku Base/SSJ/SSJ2/SSJ3, Vegeta Base/SSJ/Majin SSJ2.
+           Forms boost the disc (and the beam once it exists); Goku's lean spin/size, Vegeta's lean damage/crit.
+  Open: switching cost, Forms timed vs Ki-draining, a fighter perk or not, unlock slots.
+
+BRAINSTORM: CHOOSE FIGHTER (Goku or Vegeta) - Shulk's idea, not built yet
+  Shulk's spec
+    - "Choose fighter" decides who stands in the HUD's top centre: Goku or Vegeta, shown in their idle pose.
+    - It also picks the Ki Beam (see the beam brainstorm above): Goku = Kamehameha, Vegeta = Galick Gun.
+    - Picking Vegeta puts Goku in Vegeta's companion slot with the same trait, renamed "Desperate Blasts" (owner,
+      2026-10-27; replaces the old "kindness = more loot" idea). Same mechanic as Vegeta's Technique: quick barrage
+      of weak blasts, doubling per Trait level, + the small fixed Saiyan Pride bonus.
+    - Opens new gameplay later through Forms (to be fleshed out).
+
+  Notes for building it
+    - Rigs already in the game: goku-saiyan, goku-ssj, vegeta-saiyan (src/gen_rigs.js). The HUD portrait today is
+      Goku (Super Saiyan after the first Zenkai): it would follow the chosen fighter instead. For the idle pose,
+      draw the rig with the fight sim's POSES.idle instead of rig.rest (extract_rigs.py would need to copy POSES/P).
+    - Vegeta Super Saiyan art: the sim has vegeta-buu-ssj; extract_rigs.py WANT list would need it for a Forms look.
+    - Save: S.fighter = 'goku' | 'vegeta' (kept through Zenkai). Companion slot: HELPERS entry 'vegeta' swaps its
+      name/rig/moves to Goku's (moves: 'Kamehameha!', 'Dragon Fist!'...) when S.fighter === 'vegeta'; same key,
+      same upgrades, so switching fighters doesn't lose companion progress.
+    - Where to choose: first launch (a two-card pick) plus Menu -> Fighter to switch later. Open: is switching free,
+      or once per Zenkai?
+    - Forms (later): Super Saiyan stages as timed or Ki-draining modes (disc/beam multipliers), unlocked by Monolith
+      clears or the skill tree; Vegeta and Goku could get different form perks.
+
+  ALL GOKU AND VEGETA FORMS, IDLE POSE (Shulk: "get them all in one go")
+    Grab every Goku and Vegeta look the fight sim can draw, in the idle pose, in one extraction pass:
+    - Rigs with their own art (fight sim RIGS):
+        Goku:   goku-saiyan (base, Saiyan-Cell), goku-ssj (Super Saiyan, Namek-Cell), goku-buu (base, Buu Saga)
+        Vegeta: vegeta-saiyan (Saiyan Saga armour), vegeta-namek (Namek-Cell), vegeta-buu-base (Buu Saga),
+                vegeta-buu-ssj (Super Saiyan), vegeta-buu-ssj2 (Majin Vegeta, Super Saiyan 2)
+    - Forms drawn with hair kits on a base rig (fight sim HAIRKITS: ssj, ssj2, ssj3): e.g. Goku SSJ2 and SSJ3 on
+      goku-buu, Vegeta SSJ on vegeta-namek. Use the sim's own rigFor(id, form, race, x) to get the exact rig + kit
+      it pairs for each fighter/form, so the looks match the sim.
+    - Pose: the sim's POSES.idle (built with its P() helper), not rig.rest.
+    How: extend tools/extract_rigs.py to also copy HAIRKITS, P, POSES (at least idle), drawKit/kitPaths (already
+    copied), and the rigFor logic (or a table of fighter+form -> rig id + kit id read out of it). Add every rig id
+    above to WANT. Then render.js rigSprite() takes a kit and a pose. Check each one in a contact sheet
+    (like tools/build_sprites.py --sheet) before wiring them into Forms.
+
+TODO: FIELD VARIETY (Shulk) - BUILT in v0.4
+  The field should NEVER be all one machine type. When a machine spawns, first fill in any type from the floor's
+  pool (core.js floorPool(f): up to 3 types) that isn't on the field yet; only once every type is present do the
+  normal spawn weights (newest 20% / 35% / oldest 45%) pick duplicates.
+  Where: core.js pickMachine(S) -> pass W in, check W.nodes for missing types from floorPool(S.floor), pick one of
+  the missing ones (weighted among themselves), else the weighted roll. Caveats:
+    - The very first floors only have 1-2 types in the pool, so "all one type" is unavoidable there (floor 1-2 =
+      Scout Drones only). Fine, or let floors 1-2 borrow floor 3's second type.
+    - Keeps farming fair: the rarest (newest) type always has at least one on the field, which speeds up parts for
+      it. Re-run node tools/sim.js afterwards; rare parts get easier, so alloy gating may need a nudge.
+    - Offline (core.js offline()) uses the pool weights directly; leave it, or blend toward an even split.
+
+TODO: COMPANION PROJECTILES (Shulk) - BUILT in v0.4 (Vegeta's became the barrage; Goku's Kamehameha ball pending Choose Fighter)
+  Each companion throws their own projectile instead of the shared 3x3 ki ball (render.js frame(): "companion ki
+  balls"; shots carry s.helper). Suggested looks, matched to their moves and traits:
+    Yamcha   - small orange Spirit Ball that curves in (wobbly arc), leaves a short trail
+    Krillin  - spinning yellow Kienzan disc (flat ellipse, 2-frame spin), fits Cutting Edge (armour pierce)
+    Gohan    - yellow Masenko blast: fat round head + short tail
+    Piccolo  - Special Beam Cannon: thin straight beam with a spiral wrapped round it, fits Piercing Beam
+    Vegeta   - purple Galick Gun bolt (Goku in his slot: blue Kamehameha ball) once Choose Fighter lands
+    Nappa    - big orange Break Cannon orb that lands with a small blast, fits Bomber splash
+  Keep them pixel-drawn in code (like the disc) or cut from assets/assets.jpg's projectile row; arcs/straight
+  lines per companion via a path type on HELPERS (e.g. proj: 'arc' | 'line' | 'spin').

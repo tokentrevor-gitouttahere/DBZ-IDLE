@@ -1,0 +1,75 @@
+<title>DBZ Idle</title>
+<style>
+@font-face{font-family:'Silkscreen';font-style:normal;font-weight:400;font-display:block;src:url(data:font/woff2;base64,{{FONT400}}) format('woff2');}
+@font-face{font-family:'Silkscreen';font-style:normal;font-weight:700;font-display:block;src:url(data:font/woff2;base64,{{FONT700}}) format('woff2');}
+{{CSS}}
+</style>
+<!-- Silkscreen font: Copyright 2001 The Silkscreen Project Authors, SIL Open Font License 1.1 (https://openfontlicense.org).
+     Machines and level art: craftpix.net assets (https://craftpix.net/file-licenses/). Fighters: the DBZ Fight Simulator's rigs. -->
+<div id="app">
+  <canvas id="field" aria-label="Battlefield: hold to spin your Destructo Disc over the machines"></canvas>
+
+  <header id="hud">
+    <div class="hcol">
+      <div class="chip" title="Zenkai Points"><i class="dico"></i><b id="hZp" class="num">0</b></div>
+      <div class="chip" title="Power Level: experience to the next level"><span class="lbl">PL</span><b id="hPl" class="num">0/0</b></div>
+      <div class="lvl" title="Power Level and its cap (Monoliths raise the cap)"><b id="hLv">1</b><div class="bar"><i id="hXp"></i></div></div>
+    </div>
+    <button class="face" id="hFace" data-act="sheet" data-id="stats" aria-label="Scouter stats"><canvas id="faceCv" width="26" height="32"></canvas></button>
+    <div class="hcol">
+      <div class="chip r" title="Zeni"><b id="hZeni" class="num">0</b><i class="zico">Z</i></div>
+      <div class="chip r" title="Rainbow Capsules"><b id="hCaps" class="num">0</b><i class="capico"></i></div>
+      <div class="hbtns">
+        <button class="ibtn" data-act="sheet" data-id="stats" aria-label="Scouter stats"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 14V9M8 14V3M13 14V6"/></svg></button>
+        <button class="ibtn" data-act="sheet" data-id="lab" aria-label="Parts and Capsule Alloy"><svg viewBox="0 0 18 14"><path d="M2 9 L6 3 H16 L12 9 Z" fill="#C9D6E3" stroke="#5B6B7A" stroke-width="1.2"/><path d="M2 9 H12 V12 H2 Z" fill="#8FA1B3" stroke="#5B6B7A" stroke-width="1.2"/></svg></button>
+      </div>
+    </div>
+  </header>
+
+  <button id="goal" data-act="goal" aria-label="Training goal"><div class="gt" id="gT">TRAINING GOALS (0/5)</div><div class="gx" id="gX">...</div><div class="bar"><i id="gB"></i></div></button>
+
+  <div id="barsL">
+    <button class="vbar" id="mItem" data-act="sheet" data-id="chests" aria-label="Item chests"><span class="lab" id="miL">ITEM</span><div class="tube"><i id="miF"></i></div><span class="cnt num" id="miN">0</span></button>
+    <button class="vbar" id="mSuper" data-act="sheet" data-id="chests" aria-label="SUPER chests"><span class="lab" id="msL">SUPER</span><div class="tube"><i id="msF"></i></div><span class="cnt num" id="msN">0</span></button>
+  </div>
+
+  <div id="sideR">
+    <button class="mono" id="monoB" data-act="monoPrep" aria-label="Katchin Monolith"><svg width="26" height="44" viewBox="0 0 26 44" aria-hidden="true"><polygon points="13,2 23,10 23,42 3,42 3,10" fill="#4A5563" stroke="#C9D6E3" stroke-width="2"/><path d="M8 18 L18 18 M8 26 L18 26 M8 34 L18 34" stroke="#7ce0ff" stroke-width="1.5"/></svg></button>
+    <span class="mtime num" id="monoT">20:00</span>
+    <div class="tpanel" id="tpanel"></div>
+    <div class="tpanel" id="fpanel"></div>
+  </div>
+
+  <div id="buffs"></div>
+  <div class="hint" id="hint">HOLD TO SPIN THE DESTRUCTO DISC</div>
+  <div id="monoHud" hidden>
+    <div class="mt" id="mhT">KATCHIN MONOLITH 1</div>
+    <div class="bar"><i id="mhB"></i></div>
+    <div class="mrow"><span class="num" id="mhH">0 / 0</span><span class="clock num" id="mhC">60</span><button class="btn alt" data-act="monoQuit" style="font-size:8px">GIVE UP</button></div>
+  </div>
+  <div id="banner" hidden></div>
+
+  <div id="bottom">
+    <div class="crew" id="crew"></div>
+    <div class="floorp" id="floorP">
+      <div class="fl-top"><button class="btn alt fbtn" data-act="floorUp" aria-label="Go up a floor">&#9650;</button><button class="fl-name" data-act="floors" aria-label="Choose a floor"><b id="flN">FLOOR 1</b><span id="flR">WEST CITY</span></button><button class="btn alt fbtn" data-act="floorDown" aria-label="Go to your deepest floor">&#9660;</button></div>
+      <div class="bar"><i id="flB"></i></div>
+      <div class="fl-bot"><span class="num" id="flK">0/20</span><button class="btn alt stay" id="flStay" data-act="stay">STAY</button></div>
+    </div>
+  </div>
+
+  <nav id="nav" aria-label="Main">
+    <button class="btn" data-act="sheet" data-id="lab" aria-label="Bulma's Lab: sell and refine parts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3h6M10 3v6l-5 10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2l-5-10V3"/></svg>LAB</button>
+    <button class="btn" data-act="sheet" data-id="disc" aria-label="Disc upgrades"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 4v16M4 12h16"/></svg>DISC<span class="dot" id="dotDisc" hidden></span></button>
+    <button class="btn" data-act="sheet" data-id="items" aria-label="Items and buffs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="5" ry="8"/><path d="M12 4c2 3 2 13 0 16"/></svg>ITEMS<span class="dot" id="dotItems" hidden></span></button>
+    <button class="btn" data-act="sheet" data-id="menu" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg>MENU<span class="dot" id="dotMenu" hidden></span></button>
+    <button class="btn cc" data-act="sheet" data-id="cc" aria-label="Capsule Corp: companions, workshop and store"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="8" width="18" height="12" rx="6"/><path d="M12 8v12"/></svg>CAPSULE CORP<span class="dot" id="dotCC" hidden></span></button>
+  </nav>
+
+  <section id="sheet" hidden aria-live="polite"><div class="sh-h"><button class="btn alt" id="shBack" data-act="back" hidden>&#9664;</button><h2 id="shT">LAB</h2><button class="btn alt" data-act="close">CLOSE</button></div><div class="sh-b" id="shB"></div></section>
+  <div id="modal" hidden><div class="mbox" id="mBox" role="dialog" aria-modal="true"></div></div>
+  <div id="toast"></div>
+</div>
+<script>
+{{JS}}
+</script>

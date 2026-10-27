@@ -1,0 +1,7 @@
+# craftpix packs and preview sheets: the licence allows use in games, not redistributing the raw files.
+# The built game carries only the cut-down atlases (src/gen_sprites.js, src/gen_tiles.js).
+assets/*
+!assets/silkscreen-400.woff2
+!assets/silkscreen-700.woff2
+__pycache__/
+*.pyc
