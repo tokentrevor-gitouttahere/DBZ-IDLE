@@ -5,12 +5,14 @@ const path = require('path');
 const G = require(path.join(__dirname, '..', 'src', 'core.js'));
 
 const HOURS = +process.argv[2] || 6;
+if (process.env.CBK) G.TUNE.constructBarK = +process.env.CBK; // CBK=0.1: try another Construct price scale
 const HANDS = process.argv[3] != null ? +process.argv[3] : 0.7;
 const RUNS = +process.argv[4] || 1;
 
 function run() {
   let now = 0;
   const S = G.newState(now);
+  if (process.env.MAXZK) for (const z of G.ZK) S.zenkai.up[z.id] = z.max; // MAXZK=1: start with every Zenkai upgrade maxed
   const W = G.newWorld();
   W.bounds = { x0: 30, y0: 60, x1: 150, y1: 260 };
   W.beamFrom = [90, 40];
@@ -26,6 +28,7 @@ function run() {
     input.down = W.mode === 'mono' ? true : handT % 20 < 20 * HANDS;
     aim(S, W, input);
     G.tick(S, W, dt, input, now);
+    if (W.simLog && W.simLog.length) for (const m of W.simLog.splice(0)) mark(m);
     for (const e of W.events) {
       if (e.type === 'floor' && e.first && e.floor % 10 === 0 && !floorsSeen.has(e.floor)) { floorsSeen.add(e.floor); mark('first time on floor ' + e.floor); }
       if (e.type === 'monoEnd') {
@@ -40,7 +43,7 @@ function run() {
     now += dt * 1000;
   }
   const C = G.calc(S);
-  mark('END: PL ' + S.level + '/' + G.levelCap(S) + ', floor ' + S.floor + ' (best ' + S.maxFloor + '), Monoliths ' + S.mono.tier + ', Zenkai x' + S.zenkai.count + ', Ki Power ' + G.fmt(C.basePower) + ' (lv ' + (S.up.power || 0) + '), caps ' + S.caps + ', chests ' + S.stats.chests + '/' + S.stats.supers + ', beam ups ' + JSON.stringify(S.bup) + ', cards ' + G.cardCount(S)[0]);
+  mark('END: PL ' + S.level + '/' + G.levelCap(S) + ', floor ' + S.floor + ' (best ' + S.maxFloor + '), Monoliths ' + S.mono.tier + ', Zenkai x' + S.zenkai.count + ', Ki Power ' + G.fmt(C.basePower) + ' (lv ' + (S.up.power || 0) + '), caps ' + S.caps + ', chests ' + S.stats.chests + '/' + S.stats.supers + ', beam ups ' + JSON.stringify(S.bup) + ', cards ' + G.cardCount(S)[0] + ' (gilded+ ' + G.cardCount(S)[1] + ', shards ' + Object.values(S.shards).reduce((a, b) => a + b, 0) + ')' + ', parts salvaged ' + G.fmt(S.stats.parts) + ', challenges ' + G.chalCount(S) + '/' + G.CHALLENGES.length + ' (coins left ' + S.chal.coins + '), Namek monument ' + (S.cons.monu.namek ? 'BUILT' : 'no') + ', veins ' + JSON.stringify(S.cons.veins) + ', unlocked ' + Object.keys(S.cons.unl).join('/'));
   mark('     floor clears x' + C.floorReq.toFixed(2) + ' (Floor Requirement artifact lv ' + (S.zenkai.up.a2floor || 0) + (S.zenkai.unl.includes('a2floor') ? '' : ', NOT unlocked') + '), XP x' + C.xpMult.toFixed(2) + ', artifacts ' + JSON.stringify(S.zenkai.up) + ', zenkai pts left ' + G.fmt(S.zenkai.pts) + ', W2 upgrades ' + JSON.stringify(Object.fromEntries(G.UP_KEYS.filter((k) => G.UPS[k].req >= 105).map((k) => [k, S.up[k] || 0]))));
   if (process.env.SIM_DUMP) console.log(JSON.stringify({zeni: S.zeni, up: S.up, parts: S.parts, alloy: S.alloy, floor: S.floor}));
   if (process.env.SIM_DUMP) console.log(JSON.stringify({zeni: S.zeni, up: S.up, parts: S.parts, alloy: S.alloy, floor: S.floor}));
@@ -71,6 +74,10 @@ function needs(S) {
     const l = S.bup[k] || 0;
     if (l >= G.BEAM_UPS[k].max) continue;
     for (const [id, n] of G.beamCost(k, l).alloy) need[id] = Math.max(need[id] || 0, n);
+  }
+  if (process.env.FARMVEIN && G.has(S, 'construct')) { // a player saves the parts the next Veins research asks for
+    const z = G.VEINS.find((v) => !S.cons.unl[v.id]);
+    if (z) for (const [id, n] of G.researchCost(z).bars) need[id] = Math.max(need[id] || 0, n);
   }
   for (const w of G.WORKSHOP) {
     if (!G.wsOpen(S, w) || (S.ws[w.id] || 0) >= w.max) continue;
@@ -123,6 +130,12 @@ function decide(S, W, now) {
       const c = G.upCost(k, l, S);
       if (G.canAfford(S, c)) consider(c.zeni + 0.01, () => G.buyUp(S, k), k === 'power' ? 0.3 : /^d\d|crit|super/.test(k) ? 0.6 : 1);
     }
+    if (G.formsOpenTop(S)) for (const k of G.FORM_KEYS) {
+      const l = S.fup[k] || 0;
+      if (l >= G.FORM_UPS[k].max) continue;
+      const c = G.fupCost(k, l);
+      if (G.canAfford(S, c)) consider(c.zeni + 0.01, () => G.buyFormUp(S, k), 0.9);
+    }
     if (G.has(S, 'beam')) for (const k of G.BEAM_KEYS) {
       const l = S.bup[k] || 0;
       if (l >= G.BEAM_UPS[k].max) continue;
@@ -153,7 +166,16 @@ function decide(S, W, now) {
   // blocked on Ki Power by a part this floor barely sends? go back up and farm it, then come back down
   const pc = G.upCost('power', S.up.power || 0);
   const miss = pc.alloy.find(([id, n]) => (S.alloy[id] || 0) + Math.floor((S.parts[id] || 0) / G.ratioOf(G.MACH[id].t, C)) < n);
-  if (W.mode === 'field') {
+  let cmiss = null;
+  if (process.env.FARMVEIN && G.has(S, 'construct')) {
+    const z = G.VEINS.find((v) => !S.cons.unl[v.id]);
+    if (z) cmiss = G.researchCost(z).bars.find(([id, n]) => (S.alloy[id] || 0) + Math.floor((S.parts[id] || 0) / G.ratioOf(G.MACH[id].t, C)) < n);
+  }
+  if (W.mode === 'field' && cmiss && !miss) {
+    const t = G.MACH[cmiss[0]].t, f = G.farmFloor(S, t);
+    if (f != null && S.floor !== f) { G.setFloor(S, W, f); }
+    S.stay = true;
+  } else if (W.mode === 'field') {
     if (miss) {
       const t = G.MACH[miss[0]].t, f = G.farmFloor(S, t);
       if (f != null && G.floorPool(S.floor).every(([x]) => x !== t)) { G.setFloor(S, W, f); S.stay = true; }
@@ -162,11 +184,13 @@ function decide(S, W, now) {
   }
   for (let r = 0; r < G.SKILL_ROWS_N; r++) for (const s of G.SKILLS.filter((x) => x.row === r).sort((a, b) => a.cost - b.cost)) G.buySkill(S, s.id);
   G.claimFreebie(S, W);
-  for (const s of ['sp', 'g_disc', 'g_meter', 'g_items', 'g_tech', 'g_bank', 'g_sell', 'founder', 'p_ore', 'p_tech', 'p_zk', 'p_bar', 'lrpack', 'plane']) G.buyStore(S, s);
-  // cards: Transform the cheapest owned card with spare Rainbow Capsules
+  for (const r of G.CHAL_REWARDS) G.buyChalReward(S, r.id);
+  for (const s of ['sp', 'g_disc', 'g_meter', 'g_items', 'g_tech', 'g_bank', 'g_sell', 'founder', 'p_ore', 'p_tech', 'p_zk', 'p_bar', 'goldbundle', 'lrpack', 'plane']) G.buyStore(S, s);
+  // cards: Gild the cheapest owned card we can afford (keep some capsules back)
   if (G.has(S, 'cards')) {
-    const gild = G.CARDS.filter((k) => S.cards[k.id] === 1).sort((a, b) => G.transformCost(a.id) - G.transformCost(b.id))[0];
-    if (gild && S.caps >= G.transformCost(gild.id) + 30) G.transformCard(S, gild.id);
+    const gild = G.CARDS.filter((k) => S.cards[k.id] === 1 && S.zeni >= G.gildCost(k.id).zeni && S.zenkai.pts >= G.gildCost(k.id).zp && S.caps >= G.gildCost(k.id).caps + 30).sort((a, b) => G.gildCost(a.id).caps - G.gildCost(b.id).caps)[0];
+    if (gild) G.cardGild(S, gild.id);
+    for (const k of G.CARDS) if (S.cards[k.id] === 2) G.cardPoly(S, k.id);
   }
   // contracts: refine toward the order, deliver it, otherwise swap it; spend CP on the cheapest upgrade
   const o = G.ctCurrent(S);
@@ -178,6 +202,15 @@ function decide(S, W, now) {
       const u = G.CT_UPS.filter((x) => G.ctOpen(S, x) && (S.ct.up[x.id] || 0) < G.ctMax(S, x)).sort((a, b) => G.ctUpCost(S, a, S.ct.up[a.id] || 0) - G.ctUpCost(S, b, S.ct.up[b.id] || 0))[0];
       if (!u || !G.buyCt(S, u.id)) break;
     }
+  }
+  // Construct: research, statues and monuments the moment they are affordable (bars are what the bot already holds)
+  if (G.has(S, 'construct')) {
+    for (const z of G.VEINS) { G.researchVein(S, z.id); G.researchSpawn(S, z.id); }
+    for (let tr = 1; tr <= 3; tr++) G.buildStatue(S, tr);
+    G.buildMonument(S, 'namek'); G.buildMonument(S, 'sadala');
+    const nu = Object.keys(S.cons.unl).length, nm = Object.keys(S.cons.monu).length;
+    if (nu !== (S.__nu || 0)) { S.__nu = nu; (W.simLog = W.simLog || []).push('Veins researched: ' + Object.keys(S.cons.unl).join('/')); }
+    if (nm !== (S.__nm || 0)) { S.__nm = nm; (W.simLog = W.simLog || []).push('Monument built: ' + Object.keys(S.cons.monu).join('/')); }
   }
   // Monolith: pop buffs and go
   if (W.mode === 'field' && G.monoReady(S, now)) {

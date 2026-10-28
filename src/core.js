@@ -40,9 +40,11 @@ const IdleCore = (() => {
     // Zeni prices set before the Shminer rebalance (Workshop, Ki Beam, Z points) are multiplied by this: the wiki's
     // part sell prices are about 50x lower than ours were
     zeniK: 0.02,
+    yieldBase: 2, fighterYield: 0.1, // parts per machine: the wiki's base x2, +10% per hired Z-Fighter (ours)
+    constructBarK: 0.1, // bar prices in Construct, x the wiki's (1 = exactly the wiki). 0.1 because our parts income is far below the wiki's (no drones): sim puts Namek at ~4-5 days
     // Shminer's base pickaxe stats aren't on the wiki as text; these set ours (tuned with the sim)
     discK: 8, // Ki Power damage = (level + 1)(level + 2) / 2 x discK
-    bulmaMin: 240, bulmaMax: 540, bulmaStay: 9 // Loot Bulma: seconds between visits, seconds on screen
+    bulmaMin: 1200, bulmaMax: 1200, bulmaStay: 9, bulmaBank: 3 // Loot Bulma (the wiki's Lootbug): seconds between visits (20 minutes), seconds on screen, base banked visits (ours)
   };
 
   // ------------------------------------------------------------------ world tables
@@ -50,9 +52,9 @@ const IdleCore = (() => {
   // clear: floor clears needed to go down = floor x this (wiki Floor Clear Requirement)
   const PLANETS = [
     { id: 'earth', name: 'Earth', short: 'EARTH', gate: 0, from: 1, to: 42, clear: 5 },
-    { id: 'namek', name: 'Namek', short: 'NAMEK', gate: 10, from: 43, to: 72, clear: 15 }, // gate: Monoliths cleared to go past floor 42
-    // World 3: game speed -30% on the whole planet (wiki). The wiki doesn't say what opens World 3: ours is Monolith 20
-    { id: 'sadala', name: 'Planet Sadala', short: 'SADALA', gate: 20, from: 73, to: 102, clear: 35, speed: 0.7 }
+    { id: 'namek', name: 'Namek', short: 'NAMEK', monument: true, from: 43, to: 72, clear: 15 }, // opens when its Monument is built (Construct)
+    // World 3: game speed -30% on the whole planet (wiki); opens with its Monument
+    { id: 'sadala', name: 'Planet Sadala', short: 'SADALA', monument: true, from: 73, to: 102, clear: 35, speed: 0.7 }
   ];
   // regions = Shminer's zones: Stone 1-8, Magma 9-18, Virtual 19-24, Space 25-30, Cloud + Atomic 31-42 (we have five
   // Earth tilesets), then World 2's five zones of six floors
@@ -119,13 +121,13 @@ const IdleCore = (() => {
     30: { tech: 0.25, txt: 'Technique damage -75%' }, 31: { crit: 2, txt: 'SUPER crit+ only' }, 32: { dmg: 0.4, txt: 'Damage -60%' }, 33: { txt: 'Health +300%' },
     34: { crit: 3, txt: 'ULTRA crit+ only' }, 35: { crit: 3, txt: 'ULTRA crit+ only' }, 36: { txt: 'Health +300%' }, 37: { txt: 'Health +400%' }, 38: { tech: 0.15, txt: 'Technique damage -85%' },
     39: { crit: 3, txt: 'ULTRA crit+ only' }, 40: { txt: 'Health +500%' }, 42: { techCd: 0.4, txt: 'Technique recharge x0.4' }, 43: { dmg: 0.3, txt: 'Damage -70%' },
-    44: { gold: 0.5, txt: 'Golden floor chance x0.5' }, 45: { speed: 0.75, txt: 'Game speed -25%' },
+    41: { rbx: 0.5, txt: 'Rainbow multi x0.5' }, 44: { gold: 0.5, txt: 'Golden floor chance 50%' }, 45: { speed: 0.75, txt: 'Game speed -25%' }, 54: { rbx: 0.5, txt: 'Rainbow multi x0.5' }, 65: { rbx: 0.4, txt: 'Rainbow multi x0.4' },
     // World 3 (Sadala). Rainbow-multi modifiers wait for rainbow ores.
-    46: { txt: 'Health +600%' }, 47: { crit: 3, txt: 'ULTRA crit+ only' }, 48: { gold: 0.5, txt: 'Golden floor chance x0.5' }, 49: { txt: 'Health +800%' },
-    50: { crit: 3, txt: 'ULTRA crit+ only' }, 51: { techCd: 0.3, txt: 'Technique recharge x0.3' }, 52: { gold: 0.45, txt: 'Golden floor chance x0.45' }, 53: { dmg: 0.15, txt: 'Damage -85%' },
-    55: { crit: 7, txt: 'OMEGA crit+ only' }, 56: { gold: 0.4, txt: 'Golden floor chance x0.4' }, 57: { speed: 0.75, txt: 'Game speed -25%' }, 58: { speed: 0.75, txt: 'Game speed -25%' },
-    59: { gold: 0.45, txt: 'Golden floor chance x0.45' }, 60: { crit: 7, txt: 'OMEGA crit+ only' }, 61: { txt: 'Health +800%' }, 62: { speed: 0.75, txt: 'Game speed -25%' },
-    63: { txt: 'Health +800%' }, 64: { gold: 0.4, txt: 'Golden floor chance x0.4' } };
+    46: { txt: 'Health +600%' }, 47: { crit: 3, txt: 'ULTRA crit+ only' }, 48: { gold: 0.5, txt: 'Golden floor chance 50%' }, 49: { txt: 'Health +800%' },
+    50: { crit: 3, txt: 'ULTRA crit+ only' }, 51: { techCd: 0.3, txt: 'Technique recharge x0.3' }, 52: { gold: 0.45, txt: 'Golden floor chance 45%' }, 53: { dmg: 0.15, txt: 'Damage -85%' },
+    55: { crit: 7, txt: 'OMEGA crit+ only' }, 56: { gold: 0.4, txt: 'Golden floor chance 40%' }, 57: { speed: 0.75, txt: 'Game speed -25%' }, 58: { speed: 0.75, txt: 'Game speed -25%' },
+    59: { gold: 0.45, txt: 'Golden floor chance 45%' }, 60: { crit: 7, txt: 'OMEGA crit+ only' }, 61: { txt: 'Health +800%' }, 62: { speed: 0.75, txt: 'Game speed -25%' },
+    63: { txt: 'Health +800%' }, 64: { gold: 0.4, txt: 'Golden floor chance 40%' } };
   // the floors each ore shows up on (wiki Ores)
   const ORE_FLOORS = [[1, 2], [1, 4], [3, 6], [5, 8], [7, 10], [9, 12], [11, 14], [13, 16], [15, 18], [17, 18], [19, 20], [19, 22], [21, 24], [23, 24],
     [25, 26], [25, 28], [27, 30], [29, 30], [31, 32], [31, 34], [33, 36], [35, 36], [37, 38], [37, 40], [39, 42], [41, 42],
@@ -195,9 +197,11 @@ const IdleCore = (() => {
     { n: 8, id: 'contracts', name: 'Contracts', desc: 'Bulma orders Capsule Alloy. Each order pays Contract Points for upgrades this run (Zenkai resets them). Contract boosters join the Zenkai upgrades.' },
     { n: 8, id: 'wishes', name: 'Buu Wishes', desc: 'Challenges with permanent rewards. Each one counts within a single run.' },
     { n: 9, id: 'beam', name: 'Ki Beam', desc: 'Flip HOLD from DISC to BEAM (or right click): a beam fires from your fighter through your finger to the edge of the field and hits everything on the way, the Monolith too. It drains Ki, like forms. Upgrades in the DISC tab, KI BEAM.' },
-    { n: 10, id: 'cards', name: 'Cards', desc: 'A card for every machine, alloy, Z-Fighter, form, Technique, item and region: each gives +5% to its own thing. Transform a card with Rainbow Capsules to triple it.' },
-    { n: 10, id: 'namek', name: 'Planet Namek', desc: "Floors 43-72: five new regions and the Frieza Force's machines." },
-    { n: 20, id: 'sadala', name: 'Planet Sadala', desc: "Floors 73-102: the Saiyan homeworld. Everything runs 30% slower there." }
+    { n: 10, id: 'cards', name: 'Cards', desc: 'Cards drop from machines, alloy, Techniques, Veins and more. Gild them for a bigger effect.' },
+    { n: 17, id: 'pets', name: 'Pets', desc: 'Buy Pets with Rainbow Capsules. Each levels up by chance as you play and gives permanent bonuses.' },
+    { n: 23, id: 'stars', name: 'Stargazing', desc: 'Stars appear on certain floors. Catch them and level each Star for permanent bonuses. Upgrade the Telescope with Veins.' },
+    { n: 10, id: 'challenges', name: 'Challenges', desc: 'Tasks that pay Challenge Coins, which buy permanent upgrades.' },
+    { n: 19, id: 'construct', name: 'Construct', desc: 'Research Veins, build Statues, and build the Monuments that open Planet Namek (floors 43-72) and Planet Sadala (floors 73-102, everything runs 30% slower there).' }
   ];
 
   // ------------------------------------------------------------------ fighters and forms
@@ -314,6 +318,16 @@ const IdleCore = (() => {
     bburn: { name: 'Burn', desc: 'Machines it hits burn for a share of its damage a second, for 3s', max: 20, base: 1500, g: 1.55, from: 1, per: 2 }
   };
   const BEAM_KEYS = Object.keys(BEAM_UPS);
+  // Form upgrades (DISC sheet, FORMS tab): brand new in our game (not in Shminer), so Zeni only for now. They only work
+  // while you are transformed; reset by Zenkai (S.fup). per: bonus a level. Price: the DISC rule (base x N, then 1.3^(N-10) x N).
+  const FORM_UPS = {
+    fdmg: { name: 'Form Power', desc: 'Disc damage while transformed', per: 0.1, max: 50, base: 40 },
+    fsize: { name: 'Form Size', desc: 'Disc size while transformed', per: 0.05, max: 30, base: 30 },
+    fspin: { name: 'Form Speed', desc: 'Spin rate while transformed', per: 0.04, max: 30, base: 50 },
+    fcrit: { name: 'Form Crit', desc: 'Disc crit chance while transformed', per: 0.01, max: 30, base: 60 },
+    fki: { name: 'Form Efficiency', desc: 'Less Ki drained by your form', per: 0.03, max: 20, base: 120 }
+  };
+  const FORM_KEYS = Object.keys(FORM_UPS);
   // Beam looks: all work the same. Kamehameha (Goku) and Galick Gun (Vegeta) are free and follow your fighter; store:
   // a Capsule Store item unlocks it; later: unlocked by something not built yet. col: [outer, middle, core]
   const BEAM_LOOKS = [
@@ -383,7 +397,7 @@ const IdleCore = (() => {
     { id: 'w_plenty', name: 'Solar Flare Unlocked!', desc: 'Unlocks Solar Flare (Bomb of Plenty)', fx: [], max: 1, mono: 1, bars: [[1, 50], [2, 50], [3, 50]], unlock: 'flare' },
     { id: 'w_basic', name: 'Ki Blast & Hellzone Damage', desc: '+0.5x Ki Blast and Hellzone Grenade damage', fx: [], max: 30, mono: 1, bars: [[2, 50], [3, 40], [4, 30]] },
     { id: 'w_exp', name: 'Kaio-ken Unlocked!', desc: 'Unlocks Kaio-ken (Experience Bomb)', fx: [], max: 1, mono: 2, bars: [[3, 175], [4, 150], [5, 125]], unlock: 'kaio' },
-    { id: 'w_chain', name: 'Hellzone Orbs', desc: '+1 Hellzone Grenade hit', fx: [], max: 26, mono: 2, bars: [[3, 125], [4, 100], [5, 75]] },
+    { id: 'w_chain', name: 'Hellzone Orbs', desc: '+1 hit from every Hellzone Grenade', fx: [], max: 26, mono: 2, bars: [[3, 125], [4, 100], [5, 75]] },
     { id: 'w_inf', name: 'Destructo Barrage Unlocked!', desc: 'Unlocks Destructo Barrage (Infinity Bomb)', fx: [], max: 1, mono: 3, bars: [[4, 350], [5, 300], [6, 250]], unlock: 'barrage' },
     { id: 'w_plentyx', name: 'Solar Flare Parts', desc: '+1x parts from Solar Flare', fx: [], max: 25, mono: 3, bars: [[5, 300], [6, 250], [7, 200]] },
     { id: 'w_cherry', name: 'Afterimage Unlocked!', desc: 'Unlocks Afterimage (Cherry Bomb)', fx: [], max: 1, mono: 5, bars: [[6, 600], [7, 500], [8, 400]], unlock: 'cherry' },
@@ -471,7 +485,11 @@ const IdleCore = (() => {
     { id: 'p_tech', name: 'Perk: 3x Technique Damage', desc: 'x3 Technique damage', fx: [['techM21', 2]], max: 1, cost: 2000 },
     // Shminer's Founder bundle (paid there): its lasting perks
     { id: 'founder', name: 'Capsule Corp Founder', desc: 'x1.25 disc, Technique and Power Level gain, +2% 10x refine, Freebie 1 min faster, 24h offline limit', fx: [['offlineH', 12], ['discM22', 0.25], ['techM22', 0.25], ['xpX', 1.25], ['tenRefine', 0.02], ['freebieCd', 60]], max: 1, cost: 3000 },
+    // Shminer's Golden Ore Bundle (a paid Value Pack there; its lasting perks, earned here)
+    { id: 'goldbundle', name: 'Golden Ore Bundle', desc: '+3% chance a machine spawns golden (x3 parts), x1.25 golden machine parts', fx: [['goldenOreCh', 0.03], ['goldenOreXPct', 0.25]], max: 1, cost: 3000 },
     // ours
+    { id: 'bugcap', name: 'Banked Loot Bulma Cap', desc: '+1 Loot Bulma visit banked', fx: [['bugBank', 1]], max: 5, cost: 120, gem: true },
+    { id: 'buggold', name: 'Golden Loot Bulma', desc: '+10% chance Loot Bulma visits golden (her Capsule reward is free)', fx: [['bugGold', 0.1]], max: 5, cost: 200, gem: true },
     { id: 'plane', name: "Bulma's New Plane", desc: 'Loot Bulma visits 20% more often', fx: [['bulmaPct', 0.2]], max: 3, cost: 60 },
     // Ki Beam looks (looks only; pick one in DISC, KI BEAM)
     { id: 'lk_masenko', name: 'Beam Look: Masenko', desc: 'Fire your Ki Beam as a Masenko. Looks only.', max: 1, cost: 150, need: 'beam' },
@@ -525,6 +543,7 @@ const IdleCore = (() => {
     ['creative', 15, 1, "I'm Running Out Of Creative Names", '+1% Rainbow floor chance, +2% 10x refine chance, -10% parts per alloy', [['rainbowCh', 0.01], ['tenRefine', 0.02], ['refineMinus', 1]], 32, 20],
     ['tons', 16, 0, 'Tons Of Damage', 'x2 disc damage, +15% disc ULTRA crit chance, +100% Power Level gain', [['discX', 2], ['ultraCh', 0.15], ['xpPct', 1]], 36, 23],
     ['leprechaun', 17, 0, "Leprechaun's Legacy", 'x1.1 Golden floor parts, x1.1 Technique recharge', [['goldenXPct', 0.1], ['techRech', 0.1]], 45, 26],
+    ['poly', 17, 1, 'This Is Gonna Take A While..', 'Unlocks Polychrome cards: a Gilded card turns Polychrome with 10 Polychrome Shards, which drop like cards', [], 40, 26],
     // ours: the Ki Beam
     ['scorch', 18, 0, 'Scorched Earth', 'Ki Beam burns stack up to 3 times on the same machine', [['burnStack', 2]], 2, 9]
   ];
@@ -588,7 +607,7 @@ const IdleCore = (() => {
   //   Transfer, D20 = Dragon Ball Wish
   const TECHS = {
     blast: { name: 'Ki Blast', short: 'BLAST', cd: 30, dmg: 1, col: '#ffe36a', desc: 'One hit on every machine.' },
-    hell: { name: 'Hellzone Grenade', short: 'HELL', cd: 60, dmg: 1, col: '#8cf07a', desc: 'Ki orbs hit every machine, 1.25s apart (more with the Workshop).' },
+    hell: { name: 'Hellzone Grenade', short: 'HELL', cd: 60, dmg: 1, col: '#8cf07a', desc: 'Ki orbs hit every machine 5 times, 1.25s apart (more hits with the Workshop).' },
     flare: { name: 'Solar Flare', short: 'FLARE', cd: 110, dmg: 0.3, col: '#fff3a0', ws: 'w_plenty', desc: 'Marks every machine: x2 parts when it is destroyed (more with the Workshop).' },
     kaio: { name: 'Kaio-ken', short: 'KAIO', cd: 120, dmg: 0.5, col: '#ff5a4a', ws: 'w_exp', desc: 'Marks every machine: x2 Power Level XP (more with the Workshop), small chance of a Rainbow Capsule.' },
     spirit: { name: 'Spirit Bomb', short: 'SPIRIT', cd: 120, dmg: 25, col: '#9fe4ff', store: 'u_mega', desc: 'One huge hit on every machine (25x).' },
@@ -630,6 +649,7 @@ const IdleCore = (() => {
 
   // ------------------------------------------------------------------ state
   function newRun(now) { return { start: now, elapsed: 0, discBuys: 0, kills: 0, got: {}, techUsed: 0, itemsUsed: 0, zeni: 0, pureWin: false, fast25: false }; }
+  const newSg = () => ({ tel: 0, up: {}, su: {}, lv: {}, n: {}, ss: 0 }); // Stargazing: telescope, upgrades, Star levels, Star counts, Super Stars
   function newState(now) {
     return {
       v: VERSION, created: now, lastSave: now,
@@ -643,7 +663,7 @@ const IdleCore = (() => {
       helpers: {}, items: { weights: 1, senzu: 1, scouter: 2 }, chests: { item: 0, super: 0 }, meter: { item: 0, super: 0 },
       ws: {}, sup: {}, store: {}, skills: {}, wishes: {}, autoTech: true,
       zenkai: { pts: 0, total: 0, count: 0, up: {}, unl: [] },
-      bulma: { next: now + 90 * 1000 },
+      bulma: { next: now + 90 * 1000, bank: 0, offers: [] },
       goals: { day: '', done: 0, seq: 0, list: [] },
       seen: { m0: 1 },
       stats: { kills: 0, dmg: 0, techs: 0, play: 0, parts: 0, zeni: 0, monoWins: 0, monoTries: 0, chests: 0, supers: 0, bulma: 0, capsEarned: 0 },
@@ -652,12 +672,14 @@ const IdleCore = (() => {
       fighter: null, ki: TUNE.kiMax, formSel: 1, formOn: 0,
       // Ki Beam: weapon is what holding the field fires ('disc' | 'beam'); beamLook '' = your fighter's own beam;
       // bup: beam upgrades (this run)
-      weapon: 'disc', beamLook: '', bup: {},
+      weapon: 'disc', beamLook: '', bup: {}, fup: {},
       // Z points for Z-Fighters (kept through Zenkai); zpBought: every point ever bought (sets the price)
       zp: 0, zpBought: 0,
       // Contracts (this run) and Cards (kept)
-      ct: newCt(), cards: {},
-      freebie: { n: 0, p: 0 }, bits: 0 // Freebie Packs banked, progress (s) to the next
+      ct: newCt(), cards: {}, shards: {}, cardV: 2, sg: newSg(), pets: { have: {}, skin: {} }, gifts: 0, vp: {},
+      freebie: { n: 0, p: 0 }, bits: 0, // Freebie Packs banked, progress (s) to the next
+      cons: newCons(), // Construct: veins, research, statues, monuments (kept through Zenkai)
+      chal: newChal() // Challenges: done, coins, bought levels and the counters they read (kept through Zenkai)
     };
   }
   // saves from older versions come in here; each step upgrades one version
@@ -677,10 +699,17 @@ const IdleCore = (() => {
       S = n;
     }
     if (S.v !== VERSION) return null;
+    const hadCons = !!S.cons;
+    const oldCards = S.cardV !== 2; // the wiki card system replaced the old one
     const base = newState(now);
     for (const k of Object.keys(base)) if (S[k] === undefined) S[k] = base[k];
+    // saves from before Construct keep the planets they could already reach
+    if (!hadCons) { if (S.mono.tier >= 10) S.cons.monu.namek = 1; if (S.mono.tier >= 20) S.cons.monu.sadala = 1; }
     for (const k of ['mono', 'zenkai', 'goals', 'stats', 'chests', 'meter', 'opt', 'bulma']) S[k] = Object.assign({}, base[k], S[k]);
     S.run = Object.assign(newRun(now), S.run);
+    S.sg = Object.assign(newSg(), S.sg);
+    S.chal = Object.assign({ xdone: {}, xcoins: 0, xbuy: {} }, S.chal);
+    if (oldCards) { S.cards = {}; S.shards = {}; S.cardV = 2; }
     S.formOn = 0; // you load in base form
     S.ct = Object.assign(newCt(), S.ct);
     return S;
@@ -688,7 +717,7 @@ const IdleCore = (() => {
 
   // ------------------------------------------------------------------ derived numbers
   const lv = (S, k) => S.up[k] || 0;
-  const planetsOpen = (S) => PLANETS.filter((p) => S.mono.tier >= p.gate).length;
+  const planetsOpen = (S) => PLANETS.filter((p) => !p.monument || (S.cons && S.cons.monu[p.id])).length;
   const levelCap = (S) => TUNE.levelCap + TUNE.levelCapPer * S.mono.tier;
   // all bonuses, summed by key: permanent ones plus this run's DISC upgrades
   const isMul = (k) => /M\d+$/.test(k);
@@ -710,6 +739,12 @@ const IdleCore = (() => {
     for (const w of WISHES) if (w.fx && S.wishes[w.id]) add(w.fx, 1);
     if (S.ct) for (const u of CT_UPS) add(u.fx, S.ct.up[u.id] || 0);
     for (const k of UP_KEYS) if (k !== 'power') add([[UPS[k].fx, UPS[k].step]], S.up[k] || 0);
+    if (S.cons) for (const st of STATUES) { const t = statueTier(S, st.id); if (t) add(st.fx[t - 1], 1); } // Statues (each at its best tier)
+    if (S.sg) sgBonus(S, add);
+    if (S.pets) petBonus(S, add);
+    if (S.vp) for (const v of VALUE_PACKS) if (S.vp[v.id]) add(v.fx, 1);
+    if (S.chal) for (const r of CHAL_REWARDS) add(r.fx, S.chal.buy[r.id] || 0); // Challenge rewards
+    if (S.chal) for (const r of CHAL_XREWARDS) add(r.fx, S.chal.xbuy[r.id] || 0);
     if (S.mono) for (const [k, a] of monoPerks(S.mono.tier)) { if (k.startsWith('tcMono')) B.techCapAdd = (B.techCapAdd || 0) + a; else B[k] = (B[k] || 1) * a; } // Monolith reward multipliers (and capacity)
     return B;
   }
@@ -726,22 +761,23 @@ const IdleCore = (() => {
     // buffs of one kind don't stack with each other: the strongest one active applies
     const allDmg = (1 + b0(B, 'allPct')) * b1(B, 'allX');
     const ctDone = S.ct ? S.ct.done : 0;
-    const cards = S.cards ? Object.keys(S.cards).length : 0;
-    const basePower = pickDmg(p) * TUNE.discK * (1 + b0(B, 'discPct') + b0(B, 'discPerCt') * ctDone + b0(B, 'discPerCard') * cards + b0(B, 'discPerRelic') * ((S.stats && S.stats.supers) || 0)) * b1(B, 'discX') * mulOf(B, 'discM');
-    const formMult = S.formOn > 0 && FORM_TIERS[S.formOn] ? FORM_TIERS[S.formOn].mult : 1;
+    const cards = S.cards ? cardCount(S)[2] : 0;
+    const chalN = S.chal ? Object.keys(S.chal.done).length : 0, skillN = S.skills ? Object.values(S.skills).filter(Boolean).length : 0;
+    const basePower = pickDmg(p) * TUNE.discK * (1 + b0(B, 'discPct') + b0(B, 'discPerCt') * ctDone + b0(B, 'discPerCard') * cards + b0(B, 'discPerRelic') * ((S.stats && S.stats.supers) || 0) + b0(B, 'discPerChal') * chalN + b0(B, 'discPerMono') * S.mono.tier + b0(B, 'discPerSkill') * skillN) * b1(B, 'discX') * mulOf(B, 'discM');
+    const formMult = (S.formOn > 0 && FORM_TIERS[S.formOn] ? FORM_TIERS[S.formOn].mult : 1) * (1 + FORM_UPS.fdmg.per * flvOn(S, 'fdmg'));
     const power = basePower * (1 + (f.weights > 0 ? 0.3 : 0) + (f.gravity > 0 ? 1 : 0)) * allDmg * formMult; // Rock Cake +30%, Primal Meat +100%
     const cap = b0(B, 'upCap');
     return {
       B, basePower, power, allDmg, formMult, upCap: cap,
       kiMax: TUNE.kiMax + b0(B, 'kiMax'),
       kiRegen: TUNE.kiRegen * (1 + b0(B, 'kiRegenPct')),
-      kiDrain: Math.max(0.3, 1 - b0(B, 'kiDrainPct')),
-      spin: 4 * (1 + b0(B, 'spinPct')) * (f.turbo > 0 ? 1.2 : 1),
-      radius: 12 * (1 + b0(B, 'sizePct')) * (f.discap > 0 ? 1.25 : 1),
+      kiDrain: Math.max(0.3, 1 - b0(B, 'kiDrainPct') - FORM_UPS.fki.per * flv(S, 'fki')),
+      spin: 4 * (1 + b0(B, 'spinPct') + FORM_UPS.fspin.per * flvOn(S, 'fspin')) * (f.turbo > 0 ? 1.2 : 1),
+      radius: 12 * (1 + b0(B, 'sizePct') + FORM_UPS.fsize.per * flvOn(S, 'fsize')) * (f.discap > 0 ? 1.25 : 1),
       // crit tiers (Shminer): each has its own chance; a hit takes the best tier it rolls
-      crit: Math.min(1, 0.05 + b0(B, 'critCh') + (f.scouter > 0 ? 0.1 : 0) + (f.blessing > 0 ? 0.25 : 0)),
+      crit: Math.min(1, 0.05 + b0(B, 'critCh') + FORM_UPS.fcrit.per * flvOn(S, 'fcrit') + (f.scouter > 0 ? 0.1 : 0) + (f.blessing > 0 ? 0.25 : 0)),
       superCh: b0(B, 'superCh'), ultraCh: b0(B, 'ultraCh'), omegaCh: b0(B, 'omegaCh'),
-      critDmg: 1 + b0(B, 'critDmg') + cardVal(S, 'x_crit') + (f.pole > 0 ? 0.3 : 0) + (f.blessing > 0 ? 0.25 : 0),
+      critDmg: 1 + b0(B, 'critDmg') + (f.pole > 0 ? 0.3 : 0) + (f.blessing > 0 ? 0.25 : 0),
       superDmg: 1 + b0(B, 'superDmg'),
       techCrit: 0.05 + b0(B, 'techCritCh'), techSuperCh: b0(B, 'techSuperCh'), techUltraCh: b0(B, 'techUltraCh'), techCritDmg: 1 + b0(B, 'techCritDmg'),
       compCrit: b0(B, 'compCritCh'),
@@ -751,20 +787,20 @@ const IdleCore = (() => {
       techCd: Math.max(0.25, 1 - b0(B, 'techCdPct')) / (1 + b0(B, 'techRech')) / (f.ritual > 0 ? 2 : 1),
       freeTech: b0(B, 'freeTech'),
       techCap: Math.floor((TUNE.techCap + b0(B, 'techCapAdd') + (S.techCapPlus || 0)) * (1 + b0(B, 'techCapPct'))),
-      basicX: 1 + 0.5 * wsl(S, 'w_basic'), chainN: 1 + wsl(S, 'w_chain'), expX: 2 + 0.5 * wsl(S, 'w_expx'), megaAdd: 5 * wsl(S, 'w_mega'),
+      basicX: 1 + 0.5 * wsl(S, 'w_basic'), chainN: 5 + wsl(S, 'w_chain') + b0(B, 'chainAdd'), expX: 2 + 0.5 * wsl(S, 'w_expx'), megaAdd: 5 * wsl(S, 'w_mega'),
       wishN: 20 + wsl(S, 'w_d20x'), cherry3: 0.005 * wsl(S, 'w_cherry3'), infScale: 0.01 + 0.001 * wsl(S, 'w_infx'),
-      transX: 1 + wsl(S, 'w_trans'), megaMark: wsl(S, 'w_megamark'), transFlare: wsl(S, 'w_transbop') ? 0.25 : 0,
-      ratioCut: Math.min(0.6, 0.1 * b0(B, 'refineMinus')), // Smart Refining: -10% parts per alloy
+      transX: 1 + wsl(S, 'w_trans') + b0(B, 'transAdd'), megaMark: wsl(S, 'w_megamark'), transFlare: wsl(S, 'w_transbop') ? 0.25 : 0,
+      ratioCut: Math.min(0.6, 0.1 * b0(B, 'refineMinus') + b0(B, 'ratioCutPct')), // Smart Refining: -10% parts per alloy
       valueMult: (1 + b0(B, 'valuePct')) * b1(B, 'valueX'),
       xpMult: (1 + b0(B, 'xpPct')) * (f.rice > 0 ? 3 : 1) * b1(B, 'xpMono') * b1(B, 'xpX'),
-      yieldMult: (1 + b0(B, 'yieldPct')) * b1(B, 'yieldX'),
+      yieldMult: TUNE.yieldBase * (1 + b0(B, 'yieldPct')) * b1(B, 'yieldX') * (1 + TUNE.fighterYield * Object.keys(S.helpers).length), // base x2 (wiki); each hired Z-Fighter adds 10% (ours)
       doubleOre: b0(B, 'doubleOre'),
       tripleMach: b0(B, 'tripleMach') + (f.radar > 0 ? 0.25 : 0),
-      chestMult: (1 + b0(B, 'chestPct') + cardVal(S, 'x_chest')) * b1(B, 'chestX'),
+      chestMult: (1 + b0(B, 'chestPct')) * b1(B, 'chestX'),
       compMult: (1 + b0(B, 'compPct')) * allDmg,
       compSpd: (1 + b0(B, 'compSpdPct')) * (f.water > 0 ? 1.5 : 1),
       speed: (f.chamber > 0 ? 2 : 1) * (1 + b0(B, 'speedPct')),
-      floorReq: Math.max(0.3, 1 - b0(B, 'floorReqPct')),
+      floorReq: Math.max(0.3, 1 - b0(B, 'floorReqPct') - cardVal(S, 'x_zenkai')),
       monoTime: (TUNE.monoTime + b0(B, 'monoTime')) * (1 + b0(B, 'monoTimePct')),
       multiChest: b0(B, 'multiChest'),
       freebieEvery: Math.max(60, TUNE.freebieEvery - b0(B, 'freebieCd')), freebieBank: TUNE.freebieBank + b0(B, 'freebieBank'),
@@ -783,7 +819,7 @@ const IdleCore = (() => {
       upZeni: Math.max(0.2, 1 - b0(B, 'upZeniPct')),
       itemDur: 1 + b0(B, 'itemDurPct'),
       capsMult: 1 + b0(B, 'capsPct'),
-      zkMult: (1 + b0(B, 'zkPct')) * (1 + cardVal(S, 'x_zenkai')) * b1(B, 'zkMono') * b1(B, 'zkX'),
+      zkMult: (1 + b0(B, 'zkPct')) * b1(B, 'zkMono') * b1(B, 'zkX'),
       autoTech: b0(B, 'autoTech') > 0,
       hellLen: 10 + b0(B, 'hellLen'),
       hellRate: b1(B, 'hellRateX'),
@@ -791,12 +827,19 @@ const IdleCore = (() => {
       spiritX: b1(B, 'spiritX'),
       kaioCaps: 0.005 * b1(B, 'kaioCapsX'),
       bulmaEvery: 1 / (1 + b0(B, 'bulmaPct')),
-      bulmaLoot: 1 + b0(B, 'bulmaLoot'),
+      bulmaLoot: (1 + b0(B, 'bulmaLoot')) * (1 + cardVal(S, 'x_bulma')),
+      bulmaTriple: b0(B, 'bugTriple'), bulmaGold: b0(B, 'bugGold') + cardVal(S, 'x_golbug'), bulmaBank: TUNE.bulmaBank + b0(B, 'bugBank'),
       itemExtra: b0(B, 'itemExtra'),
       multiAdd: b0(B, 'multiAdd'),
+      veinSpawn: 1 + b0(B, 'veinSpawnPct'), veinInc: (1 + b0(B, 'veinIncPct')) * b1(B, 'veinIncX'),
+      goldenVeinCh: b0(B, 'goldenVeinCh'), rainbowVeinCh: b0(B, 'rainbowVeinCh'), goldenVeinX: 5 * (1 + b0(B, 'goldenVeinXPct')),
+      gemCap: b0(B, 'gemCap'), freebieBit: TUNE.freebieBit + b0(B, 'freebieBit'),
       startFloor: 1 + b0(B, 'startFloor'),
+      // golden machines: x3 parts (wiki base) and up; rainbow ones roll only on golden ones (no base given: x1 + bonuses)
+      goldenOreCh: b0(B, 'goldenOreCh'), goldenOreX: (3 + b0(B, 'goldenOreXAdd')) * (1 + b0(B, 'goldenOreXPct') + cardVal(S, 'x_golden')),
+      rainbowOreCh: b0(B, 'rainbowOreCh'), rainbowOreX: 1 + b0(B, 'rainbowOreXAdd'),
       goldenCh: b0(B, 'goldenCh'), rainbowCh: b0(B, 'rainbowCh'), galacticCh: b0(B, 'galacticCh'), prismCh: b0(B, 'prismCh'),
-      goldenX: (5 + b0(B, 'goldenX')) * (1 + b0(B, 'goldenXPct')), rainbowX: (50 + b0(B, 'rainbowX')) * (1 + b0(B, 'rainbowXPct')), galacticX: 10 + b0(B, 'galacticX'), prismX: 1 + b0(B, 'prismX'),
+      goldenX: (5 + b0(B, 'goldenX')) * (1 + b0(B, 'goldenXPct')) * (1 + cardVal(S, 'x_w1')), rainbowX: (50 + b0(B, 'rainbowX')) * (1 + b0(B, 'rainbowXPct')) * (1 + cardVal(S, 'x_w2')), galacticX: (10 + b0(B, 'galacticX')) * (1 + cardVal(S, 'x_w3')), prismX: 1 + b0(B, 'prismX'),
       // Ki Beam: hits off the disc's Ki Power (form, buffs and all), so it grows with the disc
       beamDmg: power * TUNE.beamPower * (1 + 0.1 * blv(S, 'bpow')) * (1 + cardVal(S, 'x_beam')),
       beamRate: TUNE.beamRate,
@@ -808,6 +851,8 @@ const IdleCore = (() => {
     };
   }
   const blv = (S, k) => (S.bup && S.bup[k]) || 0;
+  const flv = (S, k) => (S.fup && S.fup[k]) || 0;
+  const flvOn = (S, k) => (S.formOn > 0 ? flv(S, k) : 0); // only while transformed
   const wsl = (S, id) => (S.ws && S.ws[id]) || 0;
   // machines have no armor now; only Z-Fighter hits still go through this (and lose nothing)
   const effDmg = (dmg, armor) => Math.max(0, dmg - (armor || 0));
@@ -926,7 +971,7 @@ const IdleCore = (() => {
   function newWorld() {
     // beamFrom: where the Ki Beam starts (under your fighter at the top; the page sets it). beamOn: firing this frame;
     // beamOut: ran dry (or couldn't start) - the hold uses the disc until you let go
-    return { mode: 'field', nodes: [], shots: [], dots: [], spawnT: 0, discT: 0, helperT: {}, events: [], bounds: { x0: 4, y0: 4, x1: 120, y1: 200 }, mono: null, nextId: 1, bulma: null, slow: 0, beamT: 0, beamOn: false, beamOut: false, beamFrom: null };
+    return { mode: 'field', nodes: [], shots: [], dots: [], spawnT: 0, discT: 0, helperT: {}, events: [], bounds: { x0: 4, y0: 4, x1: 120, y1: 200 }, mono: null, nextId: 1, bulma: null, stars: [], slow: 0, beamT: 0, beamOn: false, beamOut: false, beamFrom: null };
   }
   // the beam(s) as rays: start point and unit direction. The main one goes from your fighter through the finger;
   // split beams fan out around it.
@@ -1003,7 +1048,8 @@ const IdleCore = (() => {
       if (room && W.nodes.some((n) => (n.x - x) ** 2 + (n.y - y) ** 2 < ((n.r + R + 2) * room) ** 2)) continue;
       const hp = machHp(m.t);
       const C = calc(S);
-      const n = { id: W.nextId++, m: m.id, t: m.t, x, y, r: R, hp, max: hp, armor: machArmor(m.t), marks: {}, flash: 0, born: 0, face: Math.random() < 0.5 ? 1 : -1, ph: Math.random() * 10, triple: C.tripleMach > 0 && Math.random() < C.tripleMach };
+      const gold = C.goldenOreCh > 0 && Math.random() < C.goldenOreCh;
+      const n = { id: W.nextId++, m: m.id, t: m.t, x, y, r: R, hp, max: hp, armor: machArmor(m.t), marks: {}, flash: 0, born: 0, face: Math.random() < 0.5 ? 1 : -1, ph: Math.random() * 10, triple: C.tripleMach > 0 && Math.random() < C.tripleMach, gold, rainbow: gold && C.rainbowOreCh > 0 && Math.random() < C.rainbowOreCh, vein: rollVein(S, C) };
       W.nodes.push(n);
       return n;
     }
@@ -1055,13 +1101,19 @@ const IdleCore = (() => {
   function addCaps(S, n) { S.caps += n; S.stats.capsEarned += n; }
   function killNode(S, W, C, n, by) {
     const m = MACH[n.m];
-    let qty = Math.max(1, sround(C.yieldMult * floorMult(S, C) * (n.triple ? 3 : 1) * (n.marks.flare ? C.flareBonus : 1) * (1 + (n.marks.pride || 0)) * (1 + cardVal(S, 'm' + m.t))));
+    const rbx = n.rainbow ? C.rainbowOreX * ((MODS[n.t] && MODS[n.t].rbx) || 1) * (1 + cardVal(S, 'x_rainbow')) : 1;
+    if (n.gold) { cardRoll(S, W, 'x_golden', 1); petRoll(S, W, 'nagini', 1); }
+    if (n.rainbow) cardRoll(S, W, 'x_rainbow', 1);
+    let qty = Math.max(1, sround(C.yieldMult * floorMult(S, C) * (n.gold ? C.goldenOreX : 1) * rbx * (n.triple ? 3 : 1) * (S.buffs.bug_ore > 0 ? 2 : 1) * (n.marks.flare ? C.flareBonus : 1) * (1 + (n.marks.pride || 0)) * (1 + cardVal(S, 'm' + m.t))));
     if (C.doubleOre && Math.random() < C.doubleOre) qty *= 2;
     const alloy = !!n.marks.smelt;
     S.parts[m.id] = (S.parts[m.id] || 0) + qty;
-    if (alloy) S.alloy[m.id] = (S.alloy[m.id] || 0) + Math.max(1, sround(qty * C.transX * C.barOut)); // Transmuter: bars as well
+    chalAdd(S, 'mined', m.id, qty);
+    if (n.gold) S.chal.c.goldMined = (S.chal.c.goldMined || 0) + 1;
+    if (n.vein && n.vein.rbw) chalAdd(S, 'rvein', n.vein.z, 1);
+    if (alloy) { const bars = Math.max(1, sround(qty * C.transX * C.barOut)); S.alloy[m.id] = (S.alloy[m.id] || 0) + bars; chalAdd(S, 'craft', m.id, bars); chalAdd(S, 'smelt', m.id, bars); } // Smelter: bars as well
     S.seen[m.id] = 1;
-    const xp = machXp(m.t) * C.xpMult * (n.marks.kaio ? C.expX : 1) * (1 + cardVal(S, 'r' + regionOf(S.floor)));
+    const xp = machXp(m.t) * C.xpMult * (n.marks.kaio ? C.expX : 1);
     cardRoll(S, W, (alloy ? 'a' : 'm') + m.t, qty);
     S.stats.kills++; S.stats.parts += qty;
     S.run.kills++; S.run.got[m.id] = (S.run.got[m.id] || 0) + qty;
@@ -1069,13 +1121,27 @@ const IdleCore = (() => {
     if (n.marks.kaio && Math.random() < C.kaioCaps) { caps = Math.max(1, sround(C.capsMult)); addCaps(S, caps); }
     goalHit(S, 'kills', null, 1);
     goalHit(S, 'mine', m.id, qty);
+    if (n.vein) { // a vein node drops its zone's Veins on top of its parts (floor multipliers don't apply)
+      const amt = sround(C.veinInc * (n.vein.gold ? C.goldenVeinX * (1 + cardVal(S, 'x_gvein')) : 1) * (n.vein.rbw ? 20 * (1 + cardVal(S, 'x_rvein')) : 1) * (1 + cardVal(S, 'v_' + n.vein.z)));
+      cardRoll(S, W, 'v_' + n.vein.z, amt);
+      petRoll(S, W, 'duck', 1);
+      if (n.vein.gold) petRoll(S, W, 'totem', 1);
+      if (VEIN[n.vein.z].from >= 73) petRoll(S, W, 'dino', 1);
+      if (n.vein.gold) cardRoll(S, W, 'x_gvein', 1);
+      if (n.vein.rbw) cardRoll(S, W, 'x_rvein', 1);
+      S.cons.veins[n.vein.z] = (S.cons.veins[n.vein.z] || 0) + amt;
+      chalAdd(S, 'veins', n.vein.z, amt);
+      emit(W, { type: 'vein', x: n.x, y: n.y - n.r * 1.6, amt, name: VEIN[n.vein.z].name, gold: n.vein.gold, rbw: n.vein.rbw });
+    }
     W.nodes = W.nodes.filter((x) => x !== n);
     emit(W, { type: 'kill', x: n.x, y: n.y, m: m.id, face: n.face, qty, alloy, caps });
     addXp(S, W, xp);
   }
   function floorCleared(S, W, C) {
     S.floorKills++; // counts floor clears
+    if (S.ftype && S.ftype.rainbow) petRoll(S, W, 'leprechaun', 1);
     goalHit(S, 'clear', null, 1);
+    if (S.sg.tel > 0 && has(S, 'stars')) sgClear(S, W);
     if (!S.stay && S.floorKills >= floorNeed(S, S.floor, C)) descend(S, W);
   }
   // special floors (wiki Floors): Golden x5 parts, Rainbow x50, Galactic (needs Rainbow) x10, Prismatic (needs
@@ -1083,9 +1149,11 @@ const IdleCore = (() => {
   function rollFloorType(S, C) {
     C = C || calc(S);
     let gold = C.goldenCh;
-    for (const [t] of floorPool(S.floor)) if (MODS[t] && MODS[t].gold) gold *= MODS[t].gold;
+    for (const [t] of floorPool(S.floor)) if (MODS[t] && MODS[t].gold) gold = Math.max(gold, MODS[t].gold); // "Golden floor = 50%" sets it
     const rb = Math.random() < C.rainbowCh, gal = rb && Math.random() < C.galacticCh;
     S.ftype = { gold: Math.random() < gold, rainbow: rb, galactic: gal, prism: gal && Math.random() < C.prismCh };
+    if (S.ftype.gold) petRoll(S, null, 'penguin', 1);
+    if (S.ftype.galactic) S.chal.c.galFloors = (S.chal.c.galFloors || 0) + 1;
   }
   const floorMult = (S, C) => { const f = S.ftype || {}; return (f.gold ? C.goldenX : 1) * (f.rainbow ? C.rainbowX : 1) * (f.galactic ? C.galacticX : 1) * (f.prism ? C.prismX : 1); };
   function canDescend(S, f) {
@@ -1099,10 +1167,12 @@ const IdleCore = (() => {
     const first = S.floor > S.maxFloor;
     S.maxFloor = Math.max(S.maxFloor, S.floor);
     if (S.floor >= 8 && S.run.elapsed <= 900) S.run.fast25 = true;
+    if (S.floor >= 40 && !S.run.discBuys) S.chal.c.noUp40 = 1;
+    if (S.floor >= 46 && !S.run.discBuys) S.chal.c.noUp46 = 1;
     rollFloorType(S);
     const nw = ORE_FLOORS.findIndex(([a]) => a === S.floor);
     if (W) emit(W, { type: 'floor', floor: S.floor, region: REGION_FLOORS.some(([a]) => a === S.floor) ? REGIONS[regionOf(S.floor)] : null, first, newMach: first && nw > 0 ? nw : null, ftype: S.ftype });
-    if (W) cardRoll(S, W, 'r' + regionOf(S.floor), 1); // offline floors add to the one offline roll instead
+    if (W) cardRoll(S, W, 'x_w' + (planetOf(S.floor) + 1), 1); // offline floors add to the one offline roll instead
     goalHit(S, 'floor', null, 1);
     return true;
   }
@@ -1129,6 +1199,7 @@ const IdleCore = (() => {
       if (S.level >= cap) { S.xp = Math.min(S.xp, xpNext(S.level)); break; }
       S.xp -= xpNext(S.level);
       S.level++;
+      if (S.level >= 100) petRoll(S, W, 'happybot', 1);
       S.stats.bestLevel = Math.max(S.stats.bestLevel || 0, S.level);
       if (W) emit(W, { type: 'level', level: S.level });
     }
@@ -1139,6 +1210,7 @@ const IdleCore = (() => {
   // input: { down, x, y } in game px
   function tick(S, W, dt, input, now) {
     dt = Math.min(dt, 0.25);
+    if (petQ.length) for (const e of petQ.splice(0)) emit(W, e);
     const C = calc(S);
     let sdt = dt * C.speed * (PLANETS[planetOf(S.floor)].speed || 1);
     if (W.nodes.some((n) => MODS[n.t] && MODS[n.t].speed)) sdt *= Math.min.apply(null, W.nodes.map((n) => (MODS[n.t] && MODS[n.t].speed) || 1));
@@ -1195,7 +1267,6 @@ const IdleCore = (() => {
       while (W.discT >= step) {
         W.discT -= step;
         const [d, crit] = discHit(C);
-        if (crit >= 2) cardRoll(S, W, 'x_crit', 1);
         if (W.mode === 'mono' && W.mono) {
           const M = W.mono;
           const cx = Math.max(M.x - M.w / 2, Math.min(input.x, M.x + M.w / 2));
@@ -1209,31 +1280,49 @@ const IdleCore = (() => {
         }
       }
     } else W.discT = step; // the first hit lands the moment you touch
-    // companions
-    if (has(S, 'companions')) for (const h of HELPERS) {
-      if (!cl(S, h.id)) continue;
-      const hs = helperStats(S, C, h);
-      W.helperT[h.id] = (W.helperT[h.id] || Math.random() * hs.every) + sdt;
-      if (W.helperT[h.id] < hs.every) continue;
-      W.helperT[h.id] -= hs.every;
-      if (W.helperT[h.id] > hs.every) W.helperT[h.id] = 0;
-      let fired = 0;
-      for (let k = 0; k < hs.shots; k++) {
-        let target = null;
-        if (W.mode === 'mono' && W.mono) target = { mono: true, x: W.mono.x + (Math.random() - 0.5) * W.mono.w * 0.6, y: W.mono.y - W.mono.h * (0.25 + Math.random() * 0.5) };
-        else if (W.nodes.length) { const n = W.nodes[Math.floor(Math.random() * W.nodes.length)]; target = { node: n.id, x: n.x, y: n.y - n.r * 0.7 }; }
-        if (!target) continue;
-        const crit = rollCrit(hs.crit);
-        // a barrage spreads its shots over half a second at most; alt: Goku throwing in Vegeta's slot
-        const hv = helperView(S, h);
-        W.shots.push({ helper: h.id, alt: !!hv.alt, target, t: -k * Math.min(0.08, 0.5 / hs.shots), dur: 0.45, dmg: hs.dmg * critMult(crit, C), crit, col: hv.col, trait: h.trait.key, tv: hs.trait, pride: h.pride || 0 });
-        fired++;
-        // now and then (always on a SUPER crit or better) they shout their move
-        W.shoutT = W.shoutT || {};
-        if ((crit >= 2 || Math.random() < 0.05) && S.stats.play - (W.shoutT[h.id] || -99) > 6) { W.shoutT[h.id] = S.stats.play; emit(W, { type: 'shout', helper: h.id, text: hv.moves[Math.floor(Math.random() * hv.moves.length)] }); }
+    // companions. Shots spread out: each one goes to the machine with the fewest shots already on the way (from
+    // anyone), so no machine gets two unless there are more shots than machines. When there is nothing to shoot the
+    // attack bar waits full (ready) instead of resetting, so it never jumps back; at very high attack speeds up to
+    // 4 volleys a frame are thrown.
+    if (has(S, 'companions')) {
+      const incoming = new Map();
+      for (const sh of W.shots) if (!sh.done && sh.target.node != null) incoming.set(sh.target.node, (incoming.get(sh.target.node) || 0) + 1);
+      const pickNode = () => {
+        let best = [], min = Infinity;
+        for (const n of W.nodes) { const c = incoming.get(n.id) || 0; if (c < min) { min = c; best = [n]; } else if (c === min) best.push(n); }
+        const n = best[Math.floor(Math.random() * best.length)];
+        incoming.set(n.id, min + 1);
+        return n;
+      };
+      for (const h of HELPERS) {
+        if (!cl(S, h.id)) continue;
+        const hs = helperStats(S, C, h);
+        if (W.helperT[h.id] === undefined) W.helperT[h.id] = Math.random() * hs.every;
+        W.helperT[h.id] += sdt;
+        let volleys = 0;
+        while (W.helperT[h.id] >= hs.every && volleys < 4) {
+          const inMono = W.mode === 'mono' && W.mono;
+          if (!inMono && !W.nodes.length) { W.helperT[h.id] = hs.every; break; } // nothing to hit: wait, full
+          W.helperT[h.id] -= hs.every;
+          volleys++;
+          let fired = 0;
+          for (let k = 0; k < hs.shots; k++) {
+            let target;
+            if (inMono) target = { mono: true, x: W.mono.x + (Math.random() - 0.5) * W.mono.w * 0.6, y: W.mono.y - W.mono.h * (0.25 + Math.random() * 0.5) };
+            else { const n = pickNode(); target = { node: n.id, x: n.x, y: n.y - n.r * 0.7 }; }
+            const crit = rollCrit(hs.crit);
+            // a barrage spreads its shots over half a second at most; alt: Goku throwing in Vegeta's slot
+            const hv = helperView(S, h);
+            W.shots.push({ helper: h.id, alt: !!hv.alt, target, t: -k * Math.min(0.08, 0.5 / hs.shots), dur: 0.45, dmg: hs.dmg * critMult(crit, C), crit, col: hv.col, trait: h.trait.key, tv: hs.trait, pride: h.pride || 0 });
+            fired++;
+            // now and then (always on a SUPER crit or better) they shout their move
+            W.shoutT = W.shoutT || {};
+            if ((crit >= 2 || Math.random() < 0.05) && S.stats.play - (W.shoutT[h.id] || -99) > 6) { W.shoutT[h.id] = S.stats.play; emit(W, { type: 'shout', helper: h.id, text: hv.moves[Math.floor(Math.random() * hv.moves.length)] }); }
+          }
+          if (fired) cardRoll(S, W, 'f_' + h.id, fired);
+        }
+        if (volleys >= 4) W.helperT[h.id] %= hs.every; // faster than we can throw: drop the extra
       }
-      if (!fired) W.helperT[h.id] = hs.every * 0.8;
-      else cardRoll(S, W, 'f_' + h.id, fired);
     }
     for (const s of W.shots) {
       s.t += sdt;
@@ -1263,16 +1352,18 @@ const IdleCore = (() => {
       W.autoT = 0;
       for (const k of TECH_KEYS) if (k !== 'cherry' && techOpen(S, k) && techCharges(S, k) >= 1) { useTech(S, W, k); break; }
     }
+    // Stars drift across the field until they are tapped or leave
+    if (W.stars.length) { for (const st of W.stars) { st.t += dt; st.x += st.vx * dt; st.y += Math.sin(st.t * 1.3 + st.ph) * 3 * dt; } W.stars = W.stars.filter((st) => st.x < W.bounds.x1 + 14); }
     // Loot Bulma flies by now and then
     if (W.mode === 'field') {
       if (!W.bulma && now >= S.bulma.next) {
         const B = W.bounds;
-        W.bulma = { x: B.x0 - 14, y: B.y0 + 16 + Math.random() * Math.max(10, (B.y1 - B.y0) * 0.5), vx: (B.x1 - B.x0 + 28) / TUNE.bulmaStay, t: 0 };
+        W.bulma = { x: B.x0 - 14, y: B.y0 + 16 + Math.random() * Math.max(10, (B.y1 - B.y0) * 0.5), vx: (B.x1 - B.x0 + 28) / TUNE.bulmaStay, t: 0, n: Math.random() < C.bulmaTriple ? 3 : 1, gold: Math.random() < C.bulmaGold };
         emit(W, { type: 'bulma' });
       }
       if (W.bulma) {
         W.bulma.t += dt; W.bulma.x += W.bulma.vx * dt;
-        if (W.bulma.t > TUNE.bulmaStay) { W.bulma = null; S.bulma.next = now + bulmaWait(C); }
+        if (W.bulma.t > TUNE.bulmaStay) { const n = W.bulma.n; W.bulma = null; S.bulma.next = now + bulmaWait(C); bankBugs(S, C, n, W); } // a missed visit waits in the bank
       }
     }
     // the Monolith clock
@@ -1284,7 +1375,7 @@ const IdleCore = (() => {
     freebieTick(S, W, C, sdt);
     // Buu Wishes are checked once a second
     W.slow += dt;
-    if (W.slow >= 1) { W.slow = 0; checkWishes(S, W); }
+    if (W.slow >= 1) { W.slow = 0; checkWishes(S, W); trackChal(S, C); checkChallenges(S, W); }
     return C;
   }
   const bulmaWait = (C) => (TUNE.bulmaMin + Math.random() * (TUNE.bulmaMax - TUNE.bulmaMin)) * C.bulmaEvery * 1000;
@@ -1301,14 +1392,16 @@ const IdleCore = (() => {
     if (!(F.n > 0)) return null;
     const got = { caps: 0, item: 0, super: 0, bits: 0, sp: 0 };
     for (; F.n > 0; F.n--) {
-      const c = Math.max(1, sround(C.freebieCaps * C.capsMult));
-      addCaps(S, c); got.caps += c;
+      const c = Math.max(1, sround((C.freebieCaps + cardVal(S, 'x_freebie')) * C.capsMult));
+      cardRoll(S, W, 'x_freebie', 1);
+      addCaps(S, c); got.caps += c; S.chal.c.freebieCaps = (S.chal.c.freebieCaps || 0) + c;
       S.chests.item++; got.item++;
+      if (S.mono.tier >= 10 && Math.random() < 0.01) { S.gifts++; got.gifts = (got.gifts || 0) + 1; } // ours: 1% of Freebie Packs hold a Gift
       if (Math.random() < C.freebieSuper) { S.chests.super++; got.super++; }
       // Stonks (skill): 1% each for +200 capsules, +20 Item chests, +10 SUPER chests
       if (C.stonks) { if (Math.random() < C.stonks) { addCaps(S, 200); got.caps += 200; } if (Math.random() < C.stonks) { S.chests.item += 20; got.item += 20; } if (Math.random() < C.stonks) { S.chests.super += 10; got.super += 10; } }
       if (C.freebieRefresh && Math.random() < C.freebieRefresh) F.p = C.freebieEvery; // instant refresh
-      if (Math.random() < TUNE.freebieBit) { S.bits++; got.bits++; if (S.bits >= 10) { S.bits -= 10; S.skillPts++; got.sp++; } }
+      if (Math.random() < C.freebieBit) { S.bits++; got.bits++; if (S.bits >= 10) { S.bits -= 10; S.skillPts++; got.sp++; } }
     }
     return got;
   }
@@ -1340,9 +1433,9 @@ const IdleCore = (() => {
       if (!techOpen(S, k)) continue;
       const B = S.bomb[k] || (S.bomb[k] = { c: 0, t: 0 });
       if (B.c >= C.techCap) { B.t = 0; continue; }
-      B.t += sdt * techSpd;
-      const cd = TECHS[k].cd * C.techCd * (1 - cardVal(S, 't_' + k));
-      while (B.t >= cd && B.c < C.techCap) { B.t -= cd; B.c++; }
+      B.t += sdt * techSpd * (S.buffs.bug_tech > 0 ? 10 : 1);
+      const cd = TECHS[k].cd * C.techCd;
+      while (B.t >= cd && B.c < C.techCap) { B.t -= cd; B.c = Math.min(C.techCap, B.c + 1 + techExtra(cardVal(S, 't_' + k))); }
     }
   }
   const techCritHit = (C) => { const ct = rollTier(C.techCrit, C.techSuperCh, C.techUltraCh, 0); return [ct ? 2 * C.techCritDmg * (ct >= 2 ? 2 : 1) * (ct >= 3 ? 3 : 1) : 1, ct]; };
@@ -1355,6 +1448,8 @@ const IdleCore = (() => {
     if (k !== 'cherry' && S.cherry > 0) S.cherry--;
     else if (!(C.freeTech && Math.random() < C.freeTech)) { if (B.c < 1) return false; B.c--; }
     cardRoll(S, W, 't_' + k, 1);
+    if (k === 'blast') petRoll(S, W, 'crab', 1);
+    chalAdd(S, 'tech', k, 1);
     S.stats.techs++; S.run.techUsed++;
     goalHit(S, 'tech', null, 1);
     emit(W, { type: 'tech', id: k, col: T.col, nodes: W.nodes.map((n) => [n.x, n.y - n.r * 0.7]) });
@@ -1392,8 +1487,19 @@ const IdleCore = (() => {
     if (!canAfford(S, cost)) return false;
     pay(S, cost);
     S.up[key] = l + 1;
+    if (key === 'power' && l + 1 > 25) petRoll(S, null, 'dwarf', 1);
     S.run.discBuys++;
     goalHit(S, 'upgrade', null, 1);
+    return true;
+  }
+  const fupCost = (key, l) => ({ zeni: +upPrice(FORM_UPS[key].base, l + 1).toPrecision(3), alloy: [] });
+  function buyFormUp(S, key) {
+    const l = flv(S, key);
+    if (!FORM_UPS[key] || !formsOpenTop(S) || l >= FORM_UPS[key].max) return false;
+    const cost = fupCost(key, l);
+    if (!canAfford(S, cost)) return false;
+    pay(S, cost);
+    S.fup[key] = l + 1;
     return true;
   }
   function buyBeam(S, key) {
@@ -1468,7 +1574,9 @@ const IdleCore = (() => {
     } else { used = Math.round(n * (1 - C.freeRefine)); out = Math.round(n * refineAvg(S, id, C) * (1 - C.freeRefine)); } // big batches: the average
     S.parts[id] -= used * ratio;
     S.alloy[id] = (S.alloy[id] || 0) + out;
+    chalAdd(S, 'craft', id, out);
     cardRoll(S, null, 'a' + MACH[id].t, out);
+    if (MACH[id].planet === 1) petRoll(S, null, 'axolotl', out);
     goalHit(S, 'refine', null, out);
     return out;
   }
@@ -1544,12 +1652,12 @@ const IdleCore = (() => {
       S.ki = max;
     } else {
       if ((S.buffs[id] || 0) + I.dur > BUFF_MAX) return false;
-      S.buffs[id] = Math.min(BUFF_MAX, (S.buffs[id] || 0) + I.dur * (1 + cardVal(S, 'i_' + id)) * calc(S).itemDur);
+      S.buffs[id] = Math.min(BUFF_MAX, (S.buffs[id] || 0) + I.dur * calc(S).itemDur);
     }
     // the instant items' cards give a chance to keep the item
-    if (!(I.dur === 0 && Math.random() < cardVal(S, 'i_' + id))) S.items[id]--;
-    cardRoll(S, W, 'i_' + id, 1);
+    S.items[id]--;
     S.run.itemsUsed++;
+    S.chal.c.items = (S.chal.c.items || 0) + 1;
     emit(W, { type: 'item', id });
     return true;
   }
@@ -1583,7 +1691,6 @@ const IdleCore = (() => {
     }
     if (kind === 'item' && C.superFromItem > 0) { const s = sround(n * C.superFromItem); if (s) { S.chests.super += s; got.superChest = s; } }
     if (caps) addCaps(S, caps);
-    cardRoll(S, null, 'x_chest', n);
     return { kind, n, got, caps };
   }
 
@@ -1600,28 +1707,387 @@ const IdleCore = (() => {
     return x;
   }
 
-  // ------------------------------------------------------------------ Loot Bulma
+  // ------------------------------------------------------------------ Construct (Monolith 19): Veins, Statues, Monuments
+  // (wiki Veins + Construct). S.cons = { unl: {zone: 1} researched, x2: {zone: 1} spawn research, veins: {zone: n}, st: [tier1 ids,
+  // tier2 ids, tier3 ids], monu: {planet: 1} }. Veins never reset. Bars are Capsule Alloy of that ore; gems = Rainbow Capsules.
+  // Prices are the wiki's x TUNE.constructBarK for bars. Not built: World 4 (we have 3 worlds) and the World 3 statues.
+  function newCons() { return { unl: {}, x2: {}, veins: {}, st: [[], [], []], monu: {} }; }
+  const ORE_NAMES = ['Tin', 'Copper', 'Mithril', 'Adamant', 'Runite', 'Citrine', 'Amethyst', 'Topaz', 'Obsidian', 'Demonite', 'VR-Tin', 'VR-Amethyst', 'VR-Demonite', 'VR-ERROR', 'Lunarium', 'Earth-C-137', 'Meteorite', 'Singularity', 'Halium', 'Blasphemite', 'Angelite', 'Elysium', 'Enemite', 'Beepboopium', 'Radion-73', 'Cranium',
+    'Lapis', 'Quartz', 'Glacialite', 'Twinklestone', 'Sandcasium', 'Clamite', 'Thunderstone', 'Crabrock', 'Hailstone', 'Frostbite', 'Icebloom', 'Pinguinus', 'Macawrock', 'Cocore', 'Rafflenium', 'Carnivorian', 'Infernite', 'Blood-Onyx', 'Cyrogem', 'Pinnaclite',
+    'Omeletite', 'Resinite', 'Impactium', 'Tricerastone', 'Duelysium', 'Arcusite', 'Phalanxite', 'Guardium', 'Cognite', 'Telophite', 'Steamstone', 'Equinine', 'Dynamite', 'Genevium', 'Manhattite', 'Rationium', 'Vaporium', 'Palmite', 'Ransomite', 'MVPD-1988'];
+  const barId = (ore) => MACHINES[ORE_NAMES.indexOf(ore)].id;
+  const barsOf = (list) => list.map(([ore, n]) => [barId(ore), Math.ceil(n * TUNE.constructBarK)]);
+  // [id, our name (the wiki's zone names are in the comment), floors, spawn rarity, Veins needed from the zone before, research bars, spawn-x2 capsules, spawn-x2 bars]
+  const VEINS = [
+    ['stone', 'West City', 1, 8, 15, 0, [['Adamant', 7.5e6], ['Runite', 7.5e6]], 100, [['Copper', 7.5e6], ['Mithril', 7.5e6]]], // Stone
+    ['magma', 'Countryside', 9, 18, 20, 425, [['Obsidian', 925000], ['Demonite', 925000]], 120, [['Amethyst', 11.25e6], ['Topaz', 11.25e6]]], // Magma
+    ['virtual', 'Kame Beach', 19, 24, 25, 745, [['VR-Demonite', 2.95e6], ['VR-ERROR', 2.95e6]], 140, [['VR-Tin', 16.85e6], ['VR-Amethyst', 16.85e6]]], // Virtual
+    ['space', 'Red Ribbon HQ', 25, 30, 30, 1050, [['Meteorite', 5.85e6], ['Singularity', 5.85e6]], 160, [['Lunarium', 25.25e6], ['Earth-C-137', 25.25e6]]], // Space
+    ['cloud', "Dr. Gero's Lab", 31, 36, 35, 1350, [['Angelite', 9.5e6], ['Elysium', 9.5e6]], 180, [['Halium', 37.95e6], ['Blasphemite', 37.95e6]]], // Cloud
+    ['atomic', "Gero's Depths", 37, 42, 40, 1850, [['Radion-73', 14.7e6], ['Cranium', 14.7e6]], 200, [['Enemite', 56.85e6], ['Beepboopium', 56.85e6]]], // Atomic
+    ['deepsea', 'Namekian Village', 43, 48, 50, 7550, [['Lapis', 82.25e6], ['Quartz', 82.25e6]], 500, [['Glacialite', 85.25e6], ['Twinklestone', 85.25e6]]], // Deep Sea
+    ['beach', 'Blue Grass Plains', 49, 54, 50, 11280, [['Sandcasium', 125.5e6], ['Clamite', 125.5e6]], 600, [['Thunderstone', 128.5e6], ['Crabrock', 128.5e6]]], // Beach
+    ['valley', 'Ajisa Groves', 55, 60, 50, 16960, [['Hailstone', 195.5e6], ['Frostbite', 195.5e6]], 700, [['Icebloom', 195.5e6], ['Pinguinus', 195.5e6]]], // Valley
+    ['jungle', "Frieza's Landing", 61, 66, 50, 385000, [['Macawrock', 2.85e9], ['Cocore', 2.85e9]], 800, [['Rafflenium', 2.9e9], ['Carnivorian', 2.9e9]]], // Jungle
+    ['volcano', 'Dying Namek', 67, 72, 50, 585000, [['Infernite', 8.55e9], ['Blood-Onyx', 8.55e9]], 900, [['Cyrogem', 8.75e9], ['Pinnaclite', 8.75e9]]], // Volcano
+    ['jurassic', 'Sadala Outskirts', 73, 78, 70, 5.5e6, [['Omeletite', 750e9], ['Resinite', 750e9]], 1500, [['Impactium', 25.5e12], ['Tricerastone', 25.5e12]]], // Jurassic
+    ['roman', 'Royal Capital', 79, 84, 70, 20.5e6, [['Duelysium', 7.5e12], ['Arcusite', 7.5e12]], 1600, [['Phalanxite', 125.5e12], ['Guardium', 125.5e12]]], // Roman
+    ['industrial', 'Training Grounds', 85, 90, 70, 92.5e6, [['Cognite', 52.5e12], ['Telophite', 52.5e12]], 1700, [['Steamstone', 350.5e12], ['Equinine', 350.5e12]]], // Industrial
+    ['warfront', 'Pod Launch Bay', 91, 96, 70, 250e6, [['Dynamite', 5.5e15], ['Genevium', 5.5e15]], 1800, [['Manhattite', 25.5e15], ['Rationium', 25.5e15]]], // Warfront
+    ['neon', 'Burning Sadala', 97, 102, 70, 550.5e6, [['Vaporium', 25.12e15], ['Palmite', 25.12e15]], 1900, [['Ransomite', 325.5e15], ['MVPD-1988', 325.5e15]]] // Neon
+  ].map(([id, name, from, to, rar, prevVeins, bars, gems, sbars], i) => ({ id, name, from, to, rar, prevVeins, bars, gems, sbars, i }));
+  const VEIN = Object.fromEntries(VEINS.map((v) => [v.id, v]));
+  const veinZoneOf = (f) => VEINS.find((v) => f >= v.from && f <= v.to) || null;
+  // each machine on a screen of this zone has a (spawn multiplier / rarity) / machines chance to be a vein node; the 2x research doubles it
+  const veinChance = (S, C, z) => Math.min(1, (C.veinSpawn * (S.cons.x2[z.id] ? 2 : 1) * (S.buffs.bug_vein > 0 ? 3 : 1)) / z.rar / C.maxNodes);
+  function rollVein(S, C) {
+    const z = veinZoneOf(S.floor);
+    if (!z || !S.cons || !S.cons.unl[z.id] || !(Math.random() < veinChance(S, C, z))) return null;
+    const gold = Math.random() < C.goldenVeinCh;
+    return { z: z.id, gold, rbw: gold && Math.random() < C.rainbowVeinCh };
+  }
+  // statues: 9, each built in a random order; a statue's bonus is its best tier's (normal, gilded, platinized). Names ours:
+  // the wiki's statues are named for their community artists. fx[t] = this tier's effects; txt[t] = what it says.
+  const STATUES = [
+    { id: 'rhythm', name: 'Statue of Rhythm', fx: [[['discM100', 2], ['veinIncPct', 0.1]], [['discM100', 4], ['veinIncPct', 0.15]], [['discM100', 7], ['veinIncPct', 0.2], ['floorReqPct', 0.25]]],
+      txt: ['Disc damage x3, Vein income +10%', 'Disc damage x5, Vein income +15%', 'Disc damage x8, Vein income +20%, floor clears -25%'] },
+    { id: 'awareness', name: 'Statue of Awareness', fx: [[['techM100', 2], ['transAdd', 1]], [['techM100', 4], ['transAdd', 2]], [['techM100', 7], ['transAdd', 4], ['techUltraCh', 0.2]]],
+      txt: ['Technique damage x3, Smelter alloy +1x', 'Technique damage x5, Smelter alloy +2x', 'Technique damage x8, Smelter alloy +4x, Technique ULTRA crit +20%'] },
+    { id: 'slaying', name: 'Statue of Slaying', fx: [[['zkX', 2], ['zkCap', 1]], [['zkX', 3], ['zkCap', 2]], [['zkX', 5], ['zkCap', 3]]],
+      txt: ['Zenkai Points x2, +1 cap on Zenkai upgrades', 'Zenkai Points x3, +2 cap', 'Zenkai Points x5, +3 cap'] },
+    { id: 'appetite', name: 'Statue of Appetite', fx: [[['techCapPct', 0.3], ['freebieBank', 1]], [['techCapPct', 0.5], ['freebieBank', 2]], [['techCapPct', 0.75], ['freebieBank', 3]]],
+      txt: ['Technique capacity x1.3, +1 banked Freebie', 'Technique capacity x1.5, +2 banked Freebies', 'Technique capacity x1.75, +3 banked Freebies'] },
+    { id: 'friendship', name: 'Statue of Friendship', fx: [[['freebieCapsAdd', 1], ['goldenXPct', 0.1]], [['freebieCapsAdd', 2], ['goldenXPct', 0.15]], [['freebieCapsAdd', 4], ['goldenXPct', 0.2], ['freebieBit', 0.01]]],
+      txt: ['Freebies +1 capsule, Golden floor parts +10%', 'Freebies +2 capsules, Golden floor parts +15%', 'Freebies +4 capsules, Golden floor parts +20%, +1% Skill Bit chance'] },
+    { id: 'hygiene', name: 'Statue of Hygiene', fx: [[['wsCap', 2], ['gemCap', 1]], [['wsCap', 3], ['gemCap', 2]], [['wsCap', 4], ['gemCap', 4]]],
+      txt: ['+2 cap on Workshop upgrades, +1 on Store upgrades', '+3 Workshop cap, +2 Store cap', '+4 Workshop cap, +4 Store cap'] },
+    { id: 'artistry', name: 'Statue of Artistry', fx: [[['rainbowCh', 0.005]], [['rainbowCh', 0.01]], [['rainbowCh', 0.015], ['freebieRefresh', 0.01]]],
+      txt: ['Rainbow floor chance +0.5%', 'Rainbow floor chance +1%', 'Rainbow floor chance +1.5%, 1% instant Freebie refresh'] },
+    { id: 'randomness', name: 'Statue of Randomness', fx: [[['veinSpawnPct', 0.3], ['goldenVeinCh', 0.03]], [['veinSpawnPct', 0.5], ['goldenVeinCh', 0.05]], [['veinSpawnPct', 0.75], ['goldenVeinCh', 0.1], ['rainbowVeinCh', 0.05]]],
+      txt: ['Vein spawn +30%, Golden vein chance +3%', 'Vein spawn +50%, Golden vein chance +5%', 'Vein spawn +75%, Golden vein +10%, Rainbow vein +5%'] },
+    { id: 'childhood', name: 'Statue of Childhood', fx: [[['ctCap', 1], ['valuePct', 0.15]], [['ctCap', 2], ['valuePct', 0.2]], [['ctCap', 4], ['valuePct', 0.25], ['rainbowCh', 0.01]]],
+      txt: ['+1 cap on Contract upgrades, part sell price +15%', '+2 Contract cap, sell price +20%', '+4 Contract cap, sell price +25%, rainbow floor +1%'] }
+  ];
+  const STATUE_BY = Object.fromEntries(STATUES.map((x) => [x.id, x]));
+  const statueTier = (S, id) => (S.cons.st[2].includes(id) ? 3 : S.cons.st[1].includes(id) ? 2 : S.cons.st[0].includes(id) ? 1 : 0);
+  // [vein zone, veins, bars, capsules] for the 1st..9th statue of each tier (wiki Construct)
+  const STATUE_COST = [
+    [['stone', 500, [['Runite', 10e6]], 300], ['magma', 650, [['Topaz', 14.5e6]], 400], ['virtual', 845, [['VR-ERROR', 21.03e6]], 500], ['space', 1100, [['Singularity', 30.49e6]], 600], ['cloud', 1430, [['Elysium', 44.21e6]], 700],
+      ['atomic', 1850, [['Cranium', 64.1e6]], 800], ['stone', 2410, [['Mithril', 92.94e6]], 900], ['virtual', 3130, [['VR-Amethyst', 134.76e6]], 1000], ['atomic', 4070, [['Beepboopium', 195.41e6]], 1100]],
+    [['stone', 5300, [['Adamant', 283.34e6]], 1200], ['magma', 6880, [['Obsidian', 410.85e6]], 1300], ['virtual', 8960, [['VR-Demonite', 595.73e6]], 1400], ['space', 11630, [['Meteorite', 863.81e6]], 1500], ['cloud', 15120, [['Angelite', 1.25e9]], 1600],
+      ['atomic', 19660, [['Radion-73', 1.82e9]], 1700], ['stone', 25550, [['Copper', 2.63e9]], 1800], ['virtual', 33220, [['VR-Tin', 3.82e9]], 1900], ['atomic', 43190, [['Enemite', 5.54e9]], 2000]],
+    [['stone', 1e5, [['Tin', 18e12], ['Copper', 10.8e12], ['Mithril', 7.2e12], ['Adamant', 6.3e12]], 2500], ['magma', 1.5e5, [['Amethyst', 7.8e12], ['Topaz', 6.17e12], ['Obsidian', 5.65e12], ['Demonite', 4.5e12]], 2750],
+      ['virtual', 2e5, [['VR-Tin', 6.8e12], ['VR-Amethyst', 5.76e12], ['VR-Demonite', 4.91e12], ['VR-ERROR', 3.86e12]], 3000], ['space', 2.5e5, [['Lunarium', 8.22e12], ['Earth-C-137', 6.97e12], ['Meteorite', 6e12], ['Singularity', 5.22e12]], 3250],
+      ['cloud', 3.25e5, [['Halium', 6.36e12], ['Blasphemite', 5.47e12], ['Angelite', 4.92e12], ['Elysium', 4.46e12]], 3500], ['atomic', 4e5, [['Enemite', 4.9e12], ['Beepboopium', 4.09e12], ['Radion-73', 3.5e12], ['Cranium', 3.02e12]], 3750],
+      ['deepsea', 5e5, [['Lapis', 3.6e12], ['Quartz', 3.19e12], ['Glacialite', 2.85e12], ['Twinklestone', 2.58e12]], 4000], ['beach', 6.5e5, [['Sandcasium', 3.18e12], ['Clamite', 2.92e12], ['Thunderstone', 2.66e12], ['Crabrock', 2.48e12]], 4250],
+      ['valley', 8.5e5, [['Tin', 1e16], ['Frostbite', 3.47e12], ['Icebloom', 3.33e12], ['Pinguinus', 3.08e12]], 4500]]
+  ];
+  const MONUMENTS = { namek: { name: 'World 2 Monument (Planet Namek)', caps: 2000, veins: [['stone', 2000], ['magma', 2000], ['virtual', 2000]] }, sadala: { name: 'World 3 Monument (Planet Sadala)', caps: 7500, veins: [['valley', 750000], ['jungle', 750000], ['volcano', 750000]], needs: 'namek' } };
+  const researchCost = (z) => ({ caps: 0, veins: z.i ? [[VEINS[z.i - 1].id, z.prevVeins]] : [], bars: barsOf(z.bars) });
+  const spawnCost = (z) => ({ caps: z.gems, veins: [], bars: barsOf(z.sbars) });
+  const statueCost = (S, tier) => { const c = STATUE_COST[tier - 1][S.cons.st[tier - 1].length]; return c ? { caps: c[3], veins: [[c[0], c[1]]], bars: barsOf(c[2]) } : null; };
+  const monumentCost = (id) => ({ caps: MONUMENTS[id].caps, veins: MONUMENTS[id].veins, bars: [] });
+  const consOk = (S, c) => !!c && S.caps >= (c.caps || 0) && c.veins.every(([z, n]) => (S.cons.veins[z] || 0) >= n) && c.bars.every(([id, n]) => (S.alloy[id] || 0) >= n);
+  function consPay(S, c) { S.caps -= c.caps || 0; for (const [z, n] of c.veins) S.cons.veins[z] -= n; for (const [id, n] of c.bars) S.alloy[id] -= n; }
+  function researchVein(S, id) {
+    const z = VEIN[id];
+    if (!has(S, 'construct') || !z || S.cons.unl[id] || (z.i && !S.cons.unl[VEINS[z.i - 1].id])) return false;
+    const c = researchCost(z);
+    if (!consOk(S, c)) return false;
+    consPay(S, c); S.cons.unl[id] = 1;
+    return true;
+  }
+  function researchSpawn(S, id) {
+    const z = VEIN[id];
+    if (!has(S, 'construct') || !z || !S.cons.unl[id] || S.cons.x2[id]) return false;
+    const c = spawnCost(z);
+    if (!consOk(S, c)) return false;
+    consPay(S, c); S.cons.x2[id] = 1;
+    return true;
+  }
+  // why a statue tier can't be built yet ('' = it can): gilding needs all 9 built, platinizing all 9 gilded and Monolith 35
+  const statueGate = (S, tier) => !has(S, 'construct') ? 'CONSTRUCT' : S.cons.st[tier - 1].length >= 9 ? 'ALL 9 DONE' : tier >= 2 && S.cons.st[tier - 2].length < 9 ? 'BUILD ALL 9 ' + (tier === 2 ? 'STATUES' : 'GILDED STATUES') + ' FIRST' : tier === 3 && S.mono.tier < 35 ? 'MONOLITH 35' : '';
+  function buildStatue(S, tier) {
+    if (statueGate(S, tier)) return null;
+    const c = statueCost(S, tier);
+    if (!consOk(S, c)) return null;
+    const pool = STATUES.filter((x) => !S.cons.st[tier - 1].includes(x.id));
+    const st = pool[Math.floor(Math.random() * pool.length)];
+    consPay(S, c); S.cons.st[tier - 1].push(st.id);
+    return st;
+  }
+  function buildMonument(S, id) {
+    const M = MONUMENTS[id];
+    if (!has(S, 'construct') || !M || S.cons.monu[id] || (M.needs && !S.cons.monu[M.needs])) return false;
+    const c = monumentCost(id);
+    if (!consOk(S, c)) return false;
+    consPay(S, c); S.cons.monu[id] = 1;
+    return true;
+  }
+
+  // ------------------------------------------------------------------ Challenges (Monolith 10; wiki Challenges)
+  // Regular tier only for now: 49 tasks, 10 Challenge Coins each, spent on the wiki's 18 reward upgrades (levels, coin
+  // cost per level, and the number of challenges you need done). Extreme (26) and Divine (25) tasks and rewards wait
+  // for the systems they use (stars, pets, fishing, arcanist...). Tasks that named drones, pets or codes are replaced
+  // by ours (Z-Fighters, Techniques...), and the bomb-stack ones are scaled to our smaller Technique capacity.
+  // S.chal = { done: {id: 1}, coins, buy: {reward: level}, c: counters }
+  function newChal() { return { done: {}, coins: 0, buy: {}, xdone: {}, xcoins: 0, xbuy: {}, c: { craft: {}, mined: {}, tech: {}, smelt: {}, veins: {}, zkAt: {} } }; }
+  const chalAdd = (S, k, id, n) => { const o = S.chal.c[k] || (S.chal.c[k] = {}); o[id] = (o[id] || 0) + n; };
+  const cc = (S, k) => S.chal.c[k] || 0;
+  const cn = (S, k, id) => (S.chal.c[k] && S.chal.c[k][id]) || 0;
+  const part = (t) => MACHINES[t].part + ' Alloy';
+  const CH_ROWS = [
+    [1, 'Hold 50 charges of one Technique at once', (S) => [cc(S, 'maxCharge'), 50]],
+    [2, 'Fire 100 Ki Blasts', (S) => [cn(S, 'tech', 'blast'), 100]],
+    [3, 'Claim a Training Goal', (S) => [cc(S, 'goals'), 1]],
+    [4, 'Refine 10,000 ' + part(0), (S) => [cn(S, 'craft', 'm0'), 1e4]],
+    [5, 'Toggle 5 settings (Options, HOLD, AUTO or STAY)', (S) => [cc(S, 'toggles'), 5]],
+    [6, 'Fire the Spirit Bomb 666 times', (S) => [cn(S, 'tech', 'spirit'), 666]],
+    [7, 'Earn 30,000 Zenkai Points', (S) => [S.zenkai.total, 3e4]],
+    [8, 'Get 100 Rainbow Capsules from Freebie Packs', (S) => [cc(S, 'freebieCaps'), 100]],
+    [9, 'Refine 20,000 ' + part(1), (S) => [cn(S, 'craft', 'm1'), 2e4]],
+    [10, 'Reach level 5 of the Disc Damage upgrade in the Capsule Store', (S) => [S.store.g_disc || 0, 5]],
+    [11, 'Hold 1,000,000 Zeni at once', (S) => [cc(S, 'maxZeni'), 1e6]],
+    [12, 'Unlock every Tier 1 and Tier 2 Artifact', (S) => [ZK.filter((z) => z.tier <= 2 && zkUnlocked(S, z)).length, ZK.filter((z) => z.tier <= 2).length]],
+    [13, 'Reach 2,500,000 Ki Power', (S) => [cc(S, 'maxDmg'), 2.5e6]],
+    [14, 'Catch Loot Bulma 10 times', (S) => [S.stats.bulma, 10]],
+    [15, "Make 5,000 " + part(2) + " with Bulma's Smelter", (S) => [cn(S, 'smelt', 'm2'), 5000]],
+    [16, 'Complete 100 Contracts in one run', (S) => [S.ct.done, 100]],
+    [17, 'Hold 150 charges of one Technique at once', (S) => [cc(S, 'maxCharge'), 150]],
+    [18, 'Hold 10,000,000 Zeni at once', (S) => [cc(S, 'maxZeni'), 1e7]],
+    [19, 'Go Zenkai within 15 seconds of a Zenkai', (S) => [cc(S, 'quickZk'), 1]],
+    [20, 'Earn 3,000,000 Zenkai Points', (S) => [S.zenkai.total, 3e6]],
+    [21, 'Hire 3 Z-Fighters', (S) => [Object.keys(S.helpers).length, 3]],
+    [22, 'Read the Patch Notes', (S) => [cc(S, 'readPatch'), 1]],
+    [23, 'Use 10 items', (S) => [cc(S, 'items'), 10]],
+    [24, 'Fire 2,500 Energy Transfers', (S) => [cn(S, 'tech', 'battery'), 2500]],
+    [25, 'Research the first Veins in Construct', (S) => [S.cons.unl.stone ? 1 : 0, 1]],
+    [26, 'Hold 400 charges of one Technique at once', (S) => [cc(S, 'maxCharge'), 400]],
+    [27, 'Hold 250,000,000 Zeni at once', (S) => [cc(S, 'maxZeni'), 2.5e8]],
+    [28, 'Fire 1,000 Techniques', (S) => [S.stats.techs, 1000]],
+    [29, "Raise Smelter Alloy to x8", (S) => [wsl(S, 'w_trans'), 7]],
+    [30, 'Refine 666,000 ' + part(9), (S) => [cn(S, 'craft', 'm9'), 666000]],
+    [31, 'Transform 3 Cards', (S) => [cardCount(S)[1], 3]],
+    [32, 'Earn 10,000,000 Zenkai Points', (S) => [S.zenkai.total, 1e7]],
+    [33, 'Switch your fighter 5 times', (S) => [cc(S, 'fighterSw'), 5]],
+    [34, 'Catch Loot Bulma 25 times', (S) => [S.stats.bulma, 25]],
+    [35, 'Fire 35,000 Ki Blasts', (S) => [cn(S, 'tech', 'blast'), 35000]],
+    [36, 'Refine 1,000,000 ' + part(25), (S) => [cn(S, 'craft', 'm25'), 1e6]],
+    [37, 'Go Zenkai 10 times at Power Level 120 or higher', (S) => [cn(S, 'zkAt', '120'), 10]],
+    [38, 'Build a Statue', (S) => [S.cons.st[0].length, 1]],
+    [39, "Raise a Z-Fighter's Damage to level 20", (S) => [Math.max(0, ...Object.values(S.helpers).map((h) => h.dmg || 0)), 20]],
+    [40, 'Unlock your third form', (S) => [formsOpenTop(S), 3]],
+    [41, 'Mine 1,000 ' + VEIN.stone.name + ' Veins', (S) => [cn(S, 'veins', 'stone'), 1000]],
+    [42, 'Fire 20,000 Dragon Ball Wishes', (S) => [cn(S, 'tech', 'wish'), 20000]],
+    [43, 'Reach floor 40 without buying a Disc upgrade', (S) => [cc(S, 'noUp40'), 1]],
+    [44, 'Complete 200 Contracts without buying a Disc upgrade', (S) => [cc(S, 'noUpCt'), 1]],
+    [45, 'Build the World 2 Monument', (S) => [S.cons.monu.namek ? 1 : 0, 1]],
+    [46, 'Salvage 5,000,000 ' + MACHINES[30].part, (S) => [cn(S, 'mined', 'm30'), 5e6]],
+    [47, 'Gain 25 Technique capacity from Energy Transfer', (S) => [S.techCapPlus || 0, 25]],
+    [48, 'Refine 10,000,000 ' + part(29), (S) => [cn(S, 'craft', 'm29'), 1e7]],
+    [49, 'Mine 10,000 ' + VEIN.deepsea.name + ' Veins', (S) => [cn(S, 'veins', 'deepsea'), 1e4]]
+  ];
+  const CHALLENGES = CH_ROWS.map(([id, text, prog]) => ({ id, text, prog }));
+  // [id, name, desc, effects, max level, coins per level, challenges needed]
+  const CHAL_REWARDS = [
+    ['cr_bar', 'Alloy Upgrade Costs', 'Disc upgrades need 5% less alloy', [['alloyCostPct', 0.05]], 3, 10, 1],
+    ['cr_chain', 'Hellzone Hits', '+1 Hellzone Grenade hit', [['chainAdd', 1]], 3, 10, 2],
+    ['cr_sdmg', 'Disc SUPER Crit Damage', '+10% SUPER crit damage', [['superDmg', 0.1]], 3, 10, 3],
+    ['cr_xp', 'XP and Zenkai Gain', '+10% Power Level XP and Zenkai Points', [['xpPct', 0.1], ['zkPct', 0.1]], 3, 10, 4],
+    ['cr_cap', 'Technique Capacity', '+3 Technique capacity', [['techCapAdd', 3]], 1, 20, 6],
+    ['cr_tcritd', 'Technique Crit Damage', '+20% Technique crit damage', [['techCritDmg', 0.2]], 3, 10, 7],
+    ['cr_perch', 'Damage per Challenge', '+1% disc damage for every Challenge done', [['discPerChal', 0.01]], 3, 10, 8],
+    ['cr_bit', 'Skill Bit Chance', '+1% Freebie Skill Bit chance', [['freebieBit', 0.01]], 1, 20, 10],
+    ['cr_sell', 'Part Sell Price', '+15% part sell price', [['valuePct', 0.15]], 3, 10, 11],
+    ['cr_dbl', 'Double Refine Chance', '+3% double refine chance', [['doubleRefine', 0.03]], 3, 10, 12],
+    ['cr_tsup', 'Technique SUPER and ULTRA Crit', '+25% Technique SUPER crit chance and +5% ULTRA', [['techSuperCh', 0.25], ['techUltraCh', 0.05]], 1, 30, 15],
+    ['cr_perskill', 'Damage per Skill', '+1% disc damage for every Skill learned', [['discPerSkill', 0.01]], 3, 10, 16],
+    ['cr_super', 'Disc SUPER Crit Chance', '+2% SUPER crit chance', [['superCh', 0.02]], 3, 10, 17],
+    ['cr_armor', 'Katchin Armor', '-12% Katchin Monolith armor', [['monoArmorPct', 0.12]], 1, 30, 20],
+    ['cr_gvein', 'Golden Vein Multi', '+5% golden vein multiplier', [['goldenVeinXPct', 0.05]], 3, 10, 21],
+    ['cr_both', 'Disc and Technique SUPER Crit', '+2% SUPER crit chance for the disc and Techniques', [['superCh', 0.02], ['techSuperCh', 0.02]], 3, 10, 22],
+    ['cr_ratio', 'Parts per Alloy', '-5% parts per alloy', [['ratioCutPct', 0.05]], 2, 10, 23],
+    ['cr_gems', 'Freebie Capsules', '+1 Rainbow Capsule from Freebie Packs', [['freebieCapsAdd', 1]], 1, 10, 24]
+  ].map(([id, name, desc, fx, max, cost, min]) => ({ id, name, desc, fx, max, cost, min }));
+  const chalCount = (S) => Object.keys(S.chal.done).length;
+  // tracked once a second: the highest Zeni, Ki Power and Technique stack ever seen, and the no-upgrade runs
+  function trackChal(S, C) {
+    const c = S.chal.c;
+    if (S.zeni > (c.maxZeni || 0)) c.maxZeni = S.zeni;
+    if (C.basePower > (c.maxDmg || 0)) c.maxDmg = C.basePower;
+    for (const k of TECH_KEYS) { const b = S.bomb && S.bomb[k]; if (b && b.c > (c.maxCharge || 0)) c.maxCharge = b.c; }
+    if (S.ct && S.ct.done >= 200 && !S.run.discBuys) c.noUpCt = 1;
+  }
+  function trackZenkai(S) {
+    const c = S.chal.c;
+    for (const th of [120, 125, 200]) if (S.level >= th) chalAdd(S, 'zkAt', String(th), 1);
+    if (S.run.elapsed < 15) c.quickZk = 1;
+  }
+  // ---- Extreme challenges: unlocked when every Regular challenge is done, 10 Extreme Coins each. Our versions of the wiki's 26
+  // (drone, Void Portal, Arcanist, frog and World 4 tasks are swapped for Z-Fighter, Construct and Stargazing ones; the wiki's
+  // numbers are kept where the thing exists). Divine challenges need systems we do not have and are not built.
+  const cardsAt = (S, kind, t) => CARDS.filter((c) => c.kind === kind && cardTier(S, c.id) >= t).length;
+  const statuesAt = (S, t) => STATUES.filter((st) => statueTier(S, st.id) >= t).length;
+  const CX_ROWS = [
+    [50, 'Reach floor 46 without buying a Disc upgrade', (S) => [cc(S, 'noUp46'), 1]],
+    [51, 'Salvage 666,000,000 ' + MACHINES[9].part, (S) => [cn(S, 'mined', 'm9'), 6.66e8]],
+    [52, 'Go Zenkai 5 times at Power Level 125 or higher', (S) => [cn(S, 'zkAt', '125'), 5]],
+    [53, 'Hold 5,000,000,000,000 Zeni at once', (S) => [cc(S, 'maxZeni'), 5e12]],
+    [54, 'Gild 15 machine cards and 15 alloy cards', (S) => [Math.min(cardsAt(S, 'machine', 2), cardsAt(S, 'alloy', 2)), 15]],
+    [55, 'Own 9 Gilded Statues', (S) => [statuesAt(S, 2), 9]],
+    [56, 'Earn 100,000,000,000,000 Zeni', (S) => [S.stats.zeni, 1e14]],
+    [57, "Make 1,000,000,000,000 " + part(0) + " with Bulma's Smelter", (S) => [cn(S, 'smelt', 'm0'), 1e12]],
+    [58, 'Reach level 15 on Taurus and Gemini', (S) => [Math.min(S.sg.lv.taurus || 0, S.sg.lv.gemini || 0), 15]],
+    [59, "Raise a Z-Fighter's Speed to level 30", (S) => [Math.max(0, ...Object.values(S.helpers).map((h) => h.spd || 0)), 30]],
+    [60, 'Fire 50,000 Energy Transfers', (S) => [cn(S, 'tech', 'battery'), 5e4]],
+    [61, 'Salvage 25,000,000,000 ' + MACHINES[3].part, (S) => [cn(S, 'mined', 'm3'), 2.5e10]],
+    [62, 'Catch 1,000 Black Star Dragon Balls', (S) => [cc(S, 'ssCaught'), 1000]],
+    [63, 'Own 8 Gilded Star cards', (S) => [cardsAt(S, 'star', 2), 8]],
+    [64, 'Mine 6,660,000 ' + VEIN.magma.name + ' Veins', (S) => [cn(S, 'veins', 'magma'), 6.66e6]],
+    [65, 'Make 46 machine cards Polychrome', (S) => [cardsAt(S, 'machine', 3), 46]],
+    [66, 'Reach 400 Technique capacity', (S) => [calc(S).techCap, 400]],
+    [67, 'Salvage 6,660,000,000,000 ' + MACHINES[12].part, (S) => [cn(S, 'mined', 'm12'), 6.66e12]],
+    [68, 'Go Zenkai 10 times at Power Level 200 or higher', (S) => [cn(S, 'zkAt', '200'), 10]],
+    [69, 'Deplete 75,000 rainbow ' + VEIN.volcano.name + ' Veins', (S) => [cn(S, 'rvein', 'volcano'), 75000]],
+    [70, 'Build the World 3 Monument', (S) => [S.cons.monu.sadala ? 1 : 0, 1]],
+    [71, 'Destroy 222,220 golden machines', (S) => [cc(S, 'goldMined'), 222220]],
+    [72, 'Mine 150,000,000 ' + VEIN.stone.name + ' Veins', (S) => [cn(S, 'veins', 'stone'), 1.5e8]],
+    [73, 'Catch 2,000 Supergiant Stars', (S) => [cc(S, 'giants'), 2000]],
+    [74, 'Clear 5,000 Galactic rainbow floors', (S) => [cc(S, 'galFloors'), 5000]],
+    [75, 'Platinize 9 Statues', (S) => [statuesAt(S, 3), 9]]
+  ];
+  const CHAL_X = CX_ROWS.map(([id, text, prog]) => ({ id, text, prog }));
+  const CHAL_XREWARDS = [
+    ['cx_mono', 'Damage per Katchin', '+2% disc damage for every Monolith broken', [['discPerMono', 0.02]], 3, 10, 1],
+    ['cx_gold', 'Golden Floor Multiplier', '+1x golden floor parts', [['goldenX', 1]], 2, 10, 2],
+    ['cx_bulma', 'Loot Bulma Visits', '+10% Loot Bulma visits', [['bulmaPct', 0.1]], 1, 30, 5],
+    ['cx_bank', 'Banked Freebie', '+1 banked Freebie Pack', [['freebieBank', 1]], 1, 30, 8],
+    ['cx_ss', 'Super Star Spawn Rate', '+10% Black Star Dragon Ball spawn rate', [['sgSuperSpawn', 0.1]], 1, 30, 11],
+    ['cx_pet', 'Pet Level Cap', '+1 Pet level cap', [['petCap', 1]], 1, 30, 14],
+    ['cx_rbx', 'Rainbow Floor Multiplier', '+5% rainbow floor parts', [['rainbowXPct', 0.05]], 3, 10, 15],
+    ['cx_tult', 'Technique ULTRA Crit', '+4% Technique ULTRA crit chance', [['techUltraCh', 0.04]], 3, 10, 16],
+    ['cx_gal', 'Galactic Floor Chance', '+2% Galactic rainbow floor chance', [['galacticCh', 0.02]], 1, 30, 19]
+  ].map(([id, name, desc, fx, max, cost, min]) => ({ id, name, desc, fx, max, cost, min }));
+  const chalXCount = (S) => Object.keys(S.chal.xdone).length;
+  const chalXOpen = (S) => chalCount(S) >= CHALLENGES.length;
+  function buyChalXReward(S, id) {
+    const r = CHAL_XREWARDS.find((x) => x.id === id), l = r ? S.chal.xbuy[id] || 0 : 0;
+    if (!r || !chalXOpen(S) || l >= r.max || chalXCount(S) < r.min || S.chal.xcoins < r.cost) return false;
+    S.chal.xcoins -= r.cost;
+    S.chal.xbuy[id] = l + 1;
+    return true;
+  }
+  function checkChallenges(S, W) {
+    if (!has(S, 'challenges')) return;
+    for (const ch of CHALLENGES) {
+      if (S.chal.done[ch.id]) continue;
+      const [a, b] = ch.prog(S);
+      if (a >= b) { S.chal.done[ch.id] = 1; S.chal.coins += 10; if (W) emit(W, { type: 'challenge', id: ch.id, text: ch.text }); }
+    }
+    if (!chalXOpen(S)) return;
+    for (const ch of CHAL_X) {
+      if (S.chal.xdone[ch.id]) continue;
+      const [a, b] = ch.prog(S);
+      if (a >= b) { S.chal.xdone[ch.id] = 1; S.chal.xcoins += 10; if (W) emit(W, { type: 'challenge', id: ch.id, text: ch.text }); }
+    }
+  }
+  function buyChalReward(S, id) {
+    const r = CHAL_REWARDS.find((x) => x.id === id), l = r ? S.chal.buy[id] || 0 : 0;
+    if (!r || !has(S, 'challenges') || l >= r.max || chalCount(S) < r.min || S.chal.coins < r.cost) return false;
+    S.chal.coins -= r.cost;
+    S.chal.buy[id] = l + 1;
+    return true;
+  }
+
+  // ------------------------------------------------------------------ Loot Bulma (the wiki's Lootbugs)
+  // She flies by every 20 minutes. Tap her plane for a free reward; a missed visit waits in the bank (up to the cap) and can
+  // be claimed from the Loot Bulma menu. Each claimed visit also offers a Rainbow Capsule reward to buy (a Golden visit gives
+  // it free); a Triple visit is three at once. Rewards are chosen by weight and scale with the Loot multiplier.
+  // Ours: the base bank of 3, the Z-Fighter tasks, no star / fishing / archaeology rewards (those systems are not built).
+  const BUG_BUFFS = { bug_ore: { name: 'Double Parts', col: '#ffd34d' }, bug_vein: { name: 'Triple Veins', col: '#7ce0ff' }, bug_tech: { name: 'Fast Recharge', col: '#ff8fd0' } };
+  // [id, label, base amount, weight, needs]
+  const BUG_FREE = [
+    ['caps', 'Rainbow Capsules', 2, 30], ['item', 'Item chests', 1, 35], ['super', 'SUPER chest', 1, 5],
+    ['cherry', 'Afterimage charges', 10, 20, (S) => techOpen(S, 'cherry')], ['ore', 'x2 parts', 120, 15],
+    ['vein', 'x3 Vein spawns', 120, 20, (S) => !!(S.cons && S.cons.unl.stone)], ['speed', 'x2 game speed', 120, 15]
+  ];
+  const BUG_GEM = [
+    ['item', 'Item chests', 3, 18], ['super', 'SUPER chest', 1, 10], ['cherry', 'Afterimage charges', 100, 20, (S) => techOpen(S, 'cherry')],
+    ['ore', 'x2 parts', 600, 24], ['vein', 'x3 Vein spawns', 600, 20, (S) => !!(S.cons && S.cons.unl.stone)], ['speed', 'x2 game speed', 600, 24], ['tech', 'x10 Technique recharge', 120, 3]
+  ];
+  const BUG_COST = 15;
+  const bugCost = (S) => Math.max(1, BUG_COST - b0(bonus(S), 'bugCostCut'));
+  const bugPick = (S, tab) => {
+    const pool = tab.filter((r) => !r[4] || r[4](S)), tot = pool.reduce((a, r) => a + r[3], 0);
+    let x = Math.random() * tot;
+    for (const r of pool) { x -= r[3]; if (x < 0) return r; }
+    return pool[0];
+  };
+  // gives one reward row; returns what it was, for the toast
+  function bugGive(S, C, r) {
+    const [id, label, base] = r;
+    const q = Math.max(1, sround(base * C.bulmaLoot));
+    const addBuff = (k) => { S.buffs[k] = Math.min(BUFF_MAX, (S.buffs[k] || 0) + q); };
+    if (id === 'caps') { const c = Math.max(1, sround(q * C.capsMult)); addCaps(S, c); return '+' + c + ' Rainbow Capsules'; }
+    if (id === 'item') S.chests.item += q;
+    else if (id === 'super') S.chests.super += q;
+    else if (id === 'cherry') S.cherry = (S.cherry || 0) + q;
+    else if (id === 'ore') addBuff('bug_ore');
+    else if (id === 'vein') addBuff('bug_vein');
+    else if (id === 'speed') addBuff('chamber');
+    else if (id === 'tech') addBuff('bug_tech');
+    return id === 'item' || id === 'super' || id === 'cherry' ? '+' + q + ' ' + label : label + ' for ' + fmtTime(q);
+  }
+  function bankBugs(S, C, n, W) {
+    const had = S.bulma.bank;
+    S.bulma.bank = Math.min(C.bulmaBank, had + n);
+    if (W && S.bulma.bank > had) emit(W, { type: 'bugBanked', n: S.bulma.bank - had, bank: S.bulma.bank });
+  }
+  // one visit's rewards: a free one, plus the buyable (or, if Golden, free) Rainbow Capsule one
+  function bugVisit(S, W, C, gold) {
+    const texts = [bugGive(S, C, bugPick(S, BUG_FREE))];
+    const g = bugPick(S, BUG_GEM);
+    if (gold) texts.push(bugGive(S, C, g));
+    else S.bulma.offers.push(g[0]);
+    S.stats.bulma++;
+    cardRoll(S, W, 'x_bulma', 1);
+    if (gold) cardRoll(S, W, 'x_golbug', 1);
+    return texts;
+  }
   function catchBulma(S, W, now) {
     if (!W.bulma) return null;
     const C = calc(S);
-    const at = { x: W.bulma.x, y: W.bulma.y };
+    const at = { x: W.bulma.x, y: W.bulma.y }, n = W.bulma.n || 1, gold = !!W.bulma.gold;
     W.bulma = null;
     S.bulma.next = now + bulmaWait(C);
-    S.stats.bulma++;
-    const r = Math.random();
-    let text, caps = 0;
-    const income = Math.round(120 * partValue(floorPool(S.floor)[0][0]) * C.valueMult * (1 + cardVal(S, 'x_bulma')) * C.bulmaLoot);
-    cardRoll(S, W, 'x_bulma', 1);
-    if (r < 0.35) { S.zeni += income; text = '+' + fmt(income) + ' Zeni'; }
-    else if (r < 0.6) { S.chests.item += 3; text = '+3 Item chests'; }
-    else if (r < 0.82) {
-      const pool = ITEM_KEYS.filter((k) => ITEMS[k].r <= 3);
-      const id = pool[Math.floor(Math.random() * pool.length)];
-      S.items[id] = (S.items[id] || 0) + 1; text = '+1 ' + ITEMS[id].name;
-    } else if (r < 0.92) { S.chests.super += 1; text = '+1 SUPER chest'; }
-    else { caps = Math.max(1, sround((5 + Math.floor(Math.random() * 11)) * C.capsMult)); addCaps(S, caps); text = '+' + caps + ' Rainbow Capsules'; }
-    emit(W, { type: 'bulmaGot', text, x: at.x, y: at.y, caps });
+    S.bulma.offers = [];
+    let texts = [];
+    for (let i = 0; i < n; i++) texts = texts.concat(bugVisit(S, W, C, gold));
+    S.bulma.offers = S.bulma.offers.slice(-3);
+    const text = texts.join(', ');
+    emit(W, { type: 'bulmaGot', text, x: at.x, y: at.y, caps: 0 });
     return text;
+  }
+  // claim every banked visit at once
+  function claimBulmaBank(S, W) {
+    const n = S.bulma.bank;
+    if (!(n > 0)) return null;
+    const C = calc(S);
+    S.bulma.bank = 0;
+    S.bulma.offers = [];
+    let texts = [];
+    for (let i = 0; i < n; i++) texts = texts.concat(bugVisit(S, W, C, false));
+    S.bulma.offers = S.bulma.offers.slice(-3);
+    return texts.join(', ');
+  }
+  function buyBulmaOffer(S, i) {
+    const id = S.bulma.offers[i];
+    if (id === undefined || S.caps < bugCost(S)) return null;
+    const r = BUG_GEM.find((x) => x[0] === id), C = calc(S);
+    S.caps -= bugCost(S);
+    petRoll(S, null, 'whale', bugCost(S));
+    S.bulma.offers.splice(i, 1);
+    return bugGive(S, C, r);
   }
 
   // ------------------------------------------------------------------ Katchin Monolith
@@ -1705,11 +2171,12 @@ const IdleCore = (() => {
       for (let i = 0; i < reward.mythic; i++) giveRelic(S, 4);
       for (let i = 0; i < reward.divine; i++) giveRelic(S, 5);
       S.skillPts += reward.skillPts;
+      S.gifts += 2; reward.gifts = 2; // ours: every Monolith clear brings 2 Gifts
       if (S.run.itemsUsed === 0) S.run.pureWin = true;
       S.mono.readyAt = now + calc(S).monoCd * 1000;
       // a new form step opens: the FORM button moves up to it
       if (FORM_TIERS.some((f, k) => f && f.mono === S.mono.tier && k > (S.formSel || 0))) S.formSel = formsOpenTop(S);
-      if (has(S, 'cards')) cardGive(S, W, 'x_mono');
+      cardRoll(S, W, 'x_mono', 1);
     } else { S.mono.dmg = M.max - M.hp; S.mono.best = frac; }
     W.mode = 'field';
     W.nodes = W.saved || [];
@@ -1734,8 +2201,9 @@ const IdleCore = (() => {
   function buyStore(S, id) {
     const s = STOREBY[id];
     if (!s || !has(S, 'store') || S.caps < s.cost || (s.need && !has(S, s.need))) return false;
-    if (s.max && (S.store[id] || 0) >= s.max) return false;
+    if (s.max && (S.store[id] || 0) >= s.max + (s.gem ? calc(S).gemCap : 0)) return false;
     S.caps -= s.cost;
+    petRoll(S, null, 'whale', s.cost);
     S.store[id] = (S.store[id] || 0) + 1;
     if (s.grant) s.grant(S);
     return true;
@@ -1757,10 +2225,11 @@ const IdleCore = (() => {
     return Math.floor(12 * Math.pow(1.084, S.level - 10) * (S.level > 200 ? 1 + 0.05 * (S.level - 200) : 1) * C.zkMult);
   }
   // what Zenkai keeps; everything else starts over
-  const KEEP = ['caps', 'skillPts', 'mono', 'helpers', 'items', 'chests', 'meter', 'ws', 'sup', 'store', 'skills', 'wishes', 'autoTech', 'zenkai', 'bulma', 'goals', 'seen', 'stats', 'opt', 'created', 'fighter', 'formSel', 'zp', 'zpBought', 'cards', 'weapon', 'beamLook', 'freebie', 'bits', 'relicN'];
+  const KEEP = ['caps', 'skillPts', 'mono', 'helpers', 'items', 'chests', 'meter', 'ws', 'sup', 'store', 'skills', 'wishes', 'autoTech', 'zenkai', 'bulma', 'goals', 'seen', 'stats', 'opt', 'created', 'fighter', 'formSel', 'zp', 'zpBought', 'cards', 'weapon', 'beamLook', 'freebie', 'bits', 'relicN', 'cons', 'chal', 'shards', 'cardV', 'sg', 'pets', 'gifts', 'vp'];
   function zenkai(S, W, now) {
     const g = zenkaiGain(S);
     if (g <= 0 || W.mode !== 'field') return false;
+    trackZenkai(S);
     const fresh = newState(now);
     const keep = {};
     for (const k of KEEP) keep[k] = S[k];
@@ -1809,12 +2278,18 @@ const IdleCore = (() => {
     { id: 'ctsell', name: 'Part Sell Price', desc: '+15% Zeni from selling parts', fx: [['valuePct', 0.15]], max: 10, base: 20, g: 1.3, mono: 12 },
     { id: 'ctfight', name: 'Z-Fighter Damage', desc: '+4% Z-Fighter damage', fx: [['compPct', 0.04]], max: 5, base: 20, g: 1.3, mono: 12 },
     { id: 'ctultra', name: 'Disc and Z-Fighter Crit', desc: '+1% crit chance for the disc and Z-Fighters', fx: [['critCh', 0.01], ['compCritCh', 0.01]], max: 5, base: 20, g: 1.3, mono: 12 },
-    { id: 'ctyield', name: 'Salvage Yield', desc: '+3% parts from machines', fx: [['yieldPct', 0.03]], max: 5, base: 20, g: 1.3, mono: 12 },
+    { id: 'ctyield', name: 'Golden Floor Multiplier', desc: '+3% Golden floor parts', fx: [['goldenXPct', 0.03]], max: 5, base: 20, g: 1.3, mono: 12 },
     { id: 'ctcaps', name: 'Rainbow Capsules', desc: '+3% Rainbow Capsules from everything', fx: [['capsPct', 0.03]], max: 5, base: 20, g: 1.3, mono: 12 },
     { id: 'ctbulma', name: 'Loot Bulma Visits', desc: 'Loot Bulma flies by 3% more often', fx: [['bulmaPct', 0.03]], max: 5, base: 40, g: 1.3, mono: 14 },
+    { id: 'cttrip', name: 'Triple Loot Bulma', desc: '+2% chance Loot Bulma visits three at once', fx: [['bugTriple', 0.02]], max: 10, base: 50, g: 1.3, mono: 14 },
     { id: 'ctspeed', name: 'Game Speed', desc: '+1% speed for everything', fx: [['speedPct', 0.01]], max: 10, base: 40, g: 1.3, mono: 14 },
-    { id: 'ctchest', name: 'Chest Meters', desc: '+2% chest meter fill', fx: [['chestPct', 0.02]], max: 10, base: 60, g: 1.3, mono: 16 },
-    { id: 'ctsuper', name: 'Hidden SUPER Chests', desc: '+0.15% chance an Item chest also holds a SUPER chest', fx: [['superFromItem', 0.0015]], max: 10, base: 60, g: 1.3, mono: 16 }
+    { id: 'ctchest', name: 'Rainbow Floor Multi', desc: '+2% Rainbow floor parts', fx: [['rainbowXPct', 0.02]], max: 10, base: 60, g: 1.3, mono: 28 },
+    { id: 'ctsuper', name: 'Hidden SUPER Chests', desc: '+0.15% chance an Item chest also holds a SUPER chest', fx: [['superFromItem', 0.0015]], max: 10, base: 60, g: 1.3, mono: 16 },
+    // World 3 (wiki Contracts): CP prices are ours (the wiki doesn't list them)
+    { id: 'ctrbch', name: 'Rainbow Floor Chance', desc: '+0.3% Rainbow floor chance', fx: [['rainbowCh', 0.003]], max: 10, base: 100, g: 1.3, mono: 42 },
+    { id: 'ctgold', name: 'Golden Ore Chance', desc: '+0.2% chance a machine spawns golden (x3 parts)', fx: [['goldenOreCh', 0.002]], max: 15, base: 100, g: 1.3, mono: 42 },
+    { id: 'ctomega', name: 'Disc & Technique OMEGA Crit', desc: '+2% OMEGA crit chance', fx: [['omegaCh', 0.02]], max: 15, base: 100, g: 1.3, mono: 42 },
+    { id: 'ctdmg', name: 'Disc & Technique Damage', desc: 'x1.08 disc and Technique damage', fx: [['discX', 1.08], ['techM31', 0.08]], max: 5, base: 150, g: 1.3, mono: 45 }
   ];
   const CT_BY = Object.fromEntries(CT_UPS.map((u) => [u.id, u]));
   const newCt = () => ({ done: 0, pts: 0, up: {}, cur: null, rerollAt: 0 });
@@ -1845,12 +2320,13 @@ const IdleCore = (() => {
     S.alloy[o.id] -= o.n;
     let mult = 1;
     for (const [k, m] of [['ct10x', 10], ['ct5x', 5], ['ct3x', 3], ['ct2x', 2]]) if (Math.random() < b0(B, k)) { mult = m; break; }
-    const pts = Math.round((10 + b0(B, 'ctPts')) * mult * (1 + cardVal(S, 'x_contract')));
+    const pts = Math.round((10 + b0(B, 'ctPts') + cardVal(S, 'x_contract')) * mult);
     S.ct.pts += pts;
     S.ct.done++;
     S.ct.cur = ctMake(S, B);
     if (W) emit(W, { type: 'contract', pts, mult });
     cardRoll(S, W, 'x_contract', 1);
+    petRoll(S, W, 'rabbit', 1);
     return { pts, mult };
   }
   // a different order, free once a minute (orders can ask for alloy you'd rather keep)
@@ -1871,34 +2347,392 @@ const IdleCore = (() => {
     return true;
   }
 
+  // ------------------------------------------------------------------ Gifts and Value Packs (Menu > Gifts)
+  // Gifts (the wiki's): open one for a random reward: first a base reward at equal odds, then a few rare rolls that replace it.
+  // Ours: they come from Monolith clears (2 each), 1% of Freebie Packs and Value Packs; the rewards that need systems we do
+  // not have (fishing, drones, idols, stickers, skins, Divine chests) are left out or swapped for ours.
+  // Value Packs: the wiki's paid bundles, earn-only here. Each costs as many Rainbow Capsules as the gems the paid one gave, and
+  // gives its lasting perks (the one-time gem and chest parts are dropped; Skill Points and Gifts are kept).
+  const rr = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+  function giftOne(S, res) {
+    const add = (k, n) => { res[k] = (res[k] || 0) + n; };
+    const giveItem = (id, n) => { S.items[id] = (S.items[id] || 0) + n; add(ITEMS[id].name, n); };
+    const buff = (k, sec, label) => { S.buffs[k] = Math.min(BUFF_MAX, (S.buffs[k] || 0) + sec); add(label, 1); };
+    const caps = (n) => { addCaps(S, n); add('Rainbow Capsules', n); };
+    let r = [
+      () => { const n = rr(3, 5); S.chests.super += n; add('SUPER chests', n); },
+      () => { const n = rr(5, 10); S.chests.super += n; add('SUPER chests', n); },
+      () => caps(rr(20, 40)),
+      () => caps(rr(35, 60)),
+      () => { const n = rr(2, 5); S.bits += n; add('Skill Bits', n); while (S.bits >= 10) { S.bits -= 10; S.skillPts++; add('Skill Points', 1); } },
+      () => buff('bug_ore', rr(600, 900), 'x2 parts (10-15 min)'),
+      () => giveItem('kidrink', rr(4, 6)),
+      () => giveItem('senzu', rr(12, 20)),
+      () => giveItem('chamber', rr(1, 2)),
+      () => (S.maxFloor >= 73 ? (S.cherry = (S.cherry || 0) + rr(1500, 2750), add('Afterimage charges', 1)) : buff('chamber', rr(1200, 1200), 'x2 game speed')),
+      () => { const n = rr(25, 40); S.chests.item += n; add('Item chests', n); },
+      () => buff('bug_ore', 1200, 'x2 parts (20 min)')
+    ][Math.floor(Math.random() * 12)];
+    if (Math.random() < 1 / 40) r = () => { S.gifts += 3; add('Gifts', 3); }; // rare rolls replace the base one
+    if (Math.random() < 1 / 45) r = () => caps(rr(80, 130));
+    r();
+  }
+  function openGifts(S, n) {
+    n = Math.min(n, Math.floor(S.gifts));
+    if (n <= 0) return null;
+    const res = {};
+    S.gifts -= n;
+    for (let i = 0; i < n; i++) giftOne(S, res);
+    S.stats.giftsOpened = (S.stats.giftsOpened || 0) + n;
+    return { n, res };
+  }
+  // [id, name, text, price in Rainbow Capsules, Monolith needed, bonus effects, one-time gifts, needs]
+  const VALUE_PACKS = [
+    ['skillsurge', 'Skill Surge Bundle', '+20 Skill Points, +1% Freebie Skill Bit chance', 1050, 0, [['freebieBit', 0.01]], { sp: 20 }],
+    ['skillgalore', 'Skill Points Galore!', '+100 Skill Points', 3550, 4, [], { sp: 100 }],
+    ['fast', 'Gotta Go Fast Bundle', '+10% game speed', 4250, 0, [['speedPct', 0.1]], {}],
+    ['banker', "Banker's Bundle", '+3 banked Freebies and Loot Bulma visits, +1 capsule per Freebie', 3650, 0, [['freebieBank', 3], ['bugBank', 3], ['freebieCapsAdd', 1]], {}],
+    ['bigbanker', "Bigger Banker's Bundle", '+5 banked Freebies and Loot Bulma visits, +1 capsule per Freebie', 4250, 0, [['freebieBank', 5], ['bugBank', 5], ['freebieCapsAdd', 1]], {}, 'banker'],
+    ['baller', 'Baller Bundle', 'x2 part sell price, +3 capsules per Freebie', 4000, 0, [['valueX', 2], ['freebieCapsAdd', 3]], {}],
+    ['goldbug', 'Golden Loot Bulma Bundle', '+20% golden Loot Bulma chance (golden visits are free)', 3750, 0, [['bugGold', 0.2]], {}],
+    ['pettrainer', 'Pet Trainer Bundle', 'x1.2 Pet level-up chance, +10% Vein spawn rate, x2 Power Level gain, +1% rainbow floor chance', 3250, 17, [['petChanceX', 1.2], ['veinSpawnPct', 0.1], ['xpX', 2], ['rainbowCh', 0.01]], {}],
+    ['capitalist', 'Capitalist Bundle', '+2 capsules per Freebie, +15% extra SUPER chest chance from Freebies', 4250, 19, [['freebieCapsAdd', 2], ['freebieSuperAdd', 0.15]], {}],
+    ['veinextract', 'Vein Extractor Bundle', 'x1.15 Vein income, +5% golden Vein chance, +2% rainbow Vein chance, +25% golden Vein amount', 3250, 19, [['veinIncX', 1.15], ['goldenVeinCh', 0.05], ['rainbowVeinCh', 0.02], ['goldenVeinXPct', 0.25]], {}],
+    ['supernova', 'Stargazing Supernova Bundle', '+3% Supernova chance, +3% Triple Star chance, +3% Triple Super Star chance', 3650, 23, [['sgNova', 0.03], ['sgTriple', 0.03], ['sgSSTriple', 0.03]], {}],
+    ['progress', 'Progression Booster Bundle', 'x1.2 golden floor parts, x1.15 Vein income, +10% Technique recharge, +5% Triple Star chance', 3750, 30, [['goldenXPct', 0.2], ['veinIncX', 1.15], ['techRech', 0.1], ['sgTriple', 0.05]], {}],
+    ['bomber', 'Bomber Extraordinaire Bundle', '+10% Technique recharge, +10% Technique capacity', 3750, 30, [['techRech', 0.1], ['techCapPct', 0.1]], {}],
+    ['lootbonanza', 'Loot Bulma Bonanza Bundle', 'x1.2 Loot Bulma rewards, +10 banked Loot Bulma visits', 4550, 32, [['bulmaLoot', 0.2], ['bugBank', 10]], {}],
+    ['craftmaster', 'Craftmaster Bundle', '+2% 10x refine chance, +5% parts from every machine', 4150, 35, [['tenRefine', 0.02], ['yieldPct', 0.05]], {}],
+    ['giftlovers', 'Gift Lovers Bundle', '+150 Gifts (needs 100 Gifts opened)', 4550, 0, [], { gifts: 150 }, 'gifts100']
+  ].map(([id, name, txt, price, mono, fx, give, need]) => ({ id, name, txt, price, mono, fx, give, need }));
+  const VP = Object.fromEntries(VALUE_PACKS.map((v) => [v.id, v]));
+  const vpOpen = (S, v) => !S.vp[v.id] && S.mono.tier >= v.mono && (!v.need || (v.need === 'gifts100' ? (S.stats.giftsOpened || 0) >= 100 : S.vp[v.need]));
+  function vpBuy(S, id) {
+    const v = VP[id];
+    if (!v || !has(S, 'store') || !vpOpen(S, v) || S.caps < v.price) return false;
+    S.caps -= v.price;
+    petRoll(S, null, 'whale', v.price);
+    S.vp[id] = 1;
+    if (v.give.sp) S.skillPts += v.give.sp;
+    if (v.give.gifts) S.gifts += v.give.gifts;
+    return true;
+  }
+
+  // ------------------------------------------------------------------ Pets (Monolith 17)
+  // The wiki's Pets: buy a Pet with Rainbow Capsules (after the first you need a total of Pet levels), and it levels up by
+  // chance when you do its thing: the chance of reaching level L is 1 / (base x (L - 1)). Level cap 10. A level-5 Skin
+  // (more capsules) gives +15% level chance and a bonus. Ours: 13 of the 16 Pets (the fishing, frog and essence ones wait for
+  // those systems), no Pet Quests or ranks yet, some perks swapped for ones we have (Happy-Bot, Axolotl skin, Duck skin).
+  const PET_CAP = 10;
+  const petQ = []; // level-ups that happened outside tick (shown on the next tick)
+  // [id, name, total Pet levels to unlock, price, level chance base, how it levels, perks [[bonus key, per level, text]], skin name, skin price, skin perks [[key, amount, text]]]
+  const PETS = [
+    ['crab', 'Crab', 0, 1, 5000, 'fires a Ki Blast', [['techCapPct', 0.03, 'Technique capacity +3%'], ['techRech', 0.01, 'Technique recharge +1%']], 'Sizzle McSnaps', 1000, [['wsCap', 1, 'Workshop upgrade cap +1']]],
+    ['dwarf', 'Dwarf', 1, 350, 50, 'Disc Power upgrade bought above level 25', [['discPct', 0.2, 'Disc damage +20%'], ['ultraCh', 0.01, 'ULTRA crit chance +1%']], 'Torvald the Tiny', 1100, [['discPct', 0.5, 'Disc damage +50%']]],
+    ['duck', 'Duck', 5, 750, 500, 'a Vein is depleted', [['xpPct', 0.12, 'Power Level gain +12%'], ['bulmaPct', 0.025, 'Loot Bulma visits +2.5%']], 'Not A Duck', 1200, [['monoArmorPct', 0.1, 'Katchin armor -10%']]],
+    ['rabbit', 'Rabbit', 12, 1000, 200, 'a Contract is finished', [['ctCostPct', 0.03, 'Contract upgrade cost -3%']], 'Fluffy', 1300, [['ctPts', 1, 'Contract Points +1']]],
+    ['penguin', 'Penguin', 18, 1500, 4500, 'a floor spawns golden', [['goldenX', 0.05, 'Golden floor parts +0.05x']], 'Monarch Waddle', 1400, [['valuePct', 0.5, 'Part sell price +50%']]],
+    ['axolotl', 'Axolotl', 28, 1750, 6660000, 'you make Namek alloy', [['doubleRefine', 0.02, 'Double refine chance +2%'], ['refineMinus', 0.1, 'Parts per alloy -1%']], 'Dorp', 1500, [['itemDurPct', 0.1, 'Item duration +10%']]],
+    ['whale', 'Whale', 40, 2000, 500, 'you spend Rainbow Capsules (each one rolls)', [['discPct', 0.1, 'Disc damage +10%'], ['bugTriple', 0.03, 'Triple Loot Bulma chance +3%']], 'Meltdown Moby', 1600, [['bugCostCut', 2, 'Loot Bulma rewards cost 2 less']]],
+    ['totem', 'Totem', 56, 2250, 450, 'a golden Vein is depleted', [['veinSpawnPct', 0.03, 'Vein spawn rate +3%'], ['goldenVeinCh', 0.01, 'Golden Vein chance +1%'], ['goldenVeinXPct', 0.01, 'Golden Vein amount +1%']], 'Marshall', 1700, [['rainbowVeinCh', 0.02, 'Rainbow Vein chance +2%']]],
+    ['happybot', 'Happy-Bot', 75, 2500, 400, 'you level up at Power Level 100+', [['zkPct', 0.04, 'Zenkai Points +4%']], 'Unhappy-Bot', 1800, [['ctCap', 1, 'Contract upgrade caps +1']]],
+    ['leprechaun', 'Leprechaun', 90, 2750, 5000, 'you clear a rainbow floor', [['speedPct', 0.015, 'Game speed +1.5%'], ['goldenXPct', 0.0125, 'Golden floor parts +1.25%'], ['rainbowCh', 0.0025, 'Rainbow floor chance +0.25%']], 'Plutonium Paddy', 1900, [['rainbowCh', 0.01, 'Rainbow floor chance +1%']]],
+    ['starfish', 'Starfish', 100, 3000, 1000, 'you catch a Black Star Dragon Ball', [['sgSS10', 0.002, 'Super Star 10x chance +0.2%'], ['sgSSNova', 0.002, 'Super Star Supernova chance +0.2%']], 'Storm-51', 2000, [['sgSpawn', 0.1, 'Star spawn rate +10%']]],
+    ['dino', 'Dino', 140, 4000, 25000000, 'you earn World 3 Veins', [['discPct', 0.2, 'Disc damage +20%'], ['rainbowXPct', 0.025, 'Rainbow floor parts +2.5%']], 'Drumstick', 3000, [['petCap', 1, 'Pet level cap +1']]],
+    ['nagini', 'Nagini', 235, 15000, 162000, 'a golden machine is destroyed', [['goldenOreXAdd', 0.05, 'Golden machine parts +0.05x'], ['goldenXPct', 0.02, 'Golden floor parts +2%'], ['rainbowXPct', 0.02, 'Rainbow floor parts +2%']], 'Abomination', 6000, [['goldenOreCh', 0.02, 'Golden machine chance +2%']]]
+  ].map(([id, name, need, price, base, how, perks, skin, skinPrice, skinFx], i) => ({ id, name, need, price, base, how, perks, skin, skinPrice, skinFx, i }));
+  const PET = Object.fromEntries(PETS.map((p) => [p.id, p]));
+  const petTotal = (S) => Object.values(S.pets.have).reduce((a, b) => a + b, 0);
+  const petCap = (S) => PET_CAP + b0(bonus(S), 'petCap');
+  const petOpen = (S, p) => !S.pets.have[p.id] && petTotal(S) >= p.need;
+  function petBonus(S, add) {
+    for (const p of PETS) {
+      const lv = S.pets.have[p.id];
+      if (!lv) continue;
+      add(p.perks.map((x) => [x[0], x[1]]), lv);
+      if (S.pets.skin[p.id]) add(p.skinFx.map((x) => [x[0], x[1]]), 1);
+    }
+  }
+  function petBuy(S, id) {
+    const p = PET[id];
+    if (!p || !has(S, 'pets') || S.pets.have[id] || petTotal(S) < p.need || S.caps < p.price) return false;
+    S.caps -= p.price;
+    S.pets.have[id] = 1;
+    petRoll(S, null, 'whale', p.price);
+    return true;
+  }
+  function petSkin(S, id) {
+    const p = PET[id];
+    if (!p || (S.pets.have[id] || 0) < 5 || S.pets.skin[id] || S.caps < p.skinPrice) return false;
+    S.caps -= p.skinPrice;
+    S.pets.skin[id] = 1;
+    petRoll(S, null, 'whale', p.skinPrice);
+    return true;
+  }
+  const petChance = (S, p) => { const lv = S.pets.have[p.id]; return lv ? (1 / (p.base * lv)) * (S.pets.skin[p.id] ? 1.15 : 1) * b1(bonus(S), 'petChanceX') : 0; };
+  // one roll (n of them, added up) for the thing this Pet likes
+  function petRoll(S, W, id, n) {
+    if (!S.pets || !S.pets.have[id] || S.pets.have[id] >= petCap(S) || !(n > 0)) return false;
+    const p = PET[id];
+    if (Math.random() >= petChance(S, p) * n) return false;
+    S.pets.have[id]++;
+    const e = { type: 'petUp', id, name: p.name, lv: S.pets.have[id] };
+    if (W) emit(W, e); else petQ.push(e);
+    return true;
+  }
+
+  // ------------------------------------------------------------------ Stargazing (Monolith 23)
+  // The wiki's Stargazing: every half hour (real clock) each Star moves to one of 5 floors. Clearing a floor a Star can be on
+  // gives it a 1/50 spawn chance (and an extra 1/100 Super Star). Tap the Star as it drifts across, or let the Auto-catch
+  // upgrades do it. Stars level up with their own count; Telescope and Super Star upgrades are paid in Veins and Super Stars.
+  // Ours: only the 18 Stars on our three planets (Aries..Phoenix), you pick which discovered Star to unlock, Telescope caps at 18,
+  // no Black Hole, no star wishing or following (offline always counts the floor you are on), perks that need pets, fishing,
+  // drones or the Arcanist are swapped for something we have, the late costs are fitted.
+  const SG_ONCE = 1 / 50, SG_SUPER = 1 / 100, SG_PERIOD = 30 * 60 * 1000;
+  // [id, name, level 2 cost, growth, base cap, perks [[bonus key, per level, text]], floors in sets A..E]
+  const SG_STARS = [
+    ['aries', 'Aries', 150, 1.25, 20, [['veinSpawnPct', 0.03, 'Vein spawn rate +3%'], ['goldenVeinCh', 0.01, 'Golden Vein chance +1%']], [19, 8, 12, 26, 22]],
+    ['taurus', 'Taurus', 150, 1.25, 20, [['discPct', 0.12, 'Disc damage +12%'], ['sgAuto', 0.02, 'Auto-catch Stars +2%']], [9, 6, 27, 36, 3]],
+    ['gemini', 'Gemini', 150, 1.25, 20, [['goldenXPct', 0.02, 'Golden floor parts +2%'], ['sgSpawn', 0.02, 'Star spawn rate +2%']], [29, 40, 18, 60, 9]],
+    ['cancer', 'Cancer', 300, 1.25, 20, [['ct2x', 0.01, 'Double Contract Point chance +1%'], ['ctCostPct', 0.01, 'Contract upgrade cost -1%']], [39, 28, 4, 47, 41]],
+    ['leo', 'Leo', 10000, 3, 3, [['wsCap', 1, 'Workshop cap +1'], ['sgSSTriple', 0.04, 'Triple Super Star chance +4%']], [43, 58, 5, 13, 26]],
+    ['virgo', 'Virgo', 300, 1.25, 25, [['techRech', 0.01, 'Technique recharge +1%'], ['sgSuperSpawn', 0.01, 'Super Star spawn rate +1%']], [17, 23, 58, 41, 12]],
+    ['libra', 'Libra', 300, 1.25, 20, [['zkPct', 0.05, 'Zenkai Points +5%'], ['bugTriple', 0.01, 'Triple Loot Bulma chance +1%']], [42, 13, 39, 4, 17]],
+    ['scorpio', 'Scorpio', 150, 1.25, 50, [['discPct', 0.15, 'Disc damage +15%'], ['sgAll', 0.005, 'All Star multiplier +0.5%']], [27, 59, 44, 21, 36]],
+    ['sagittarius', 'Sagittarius', 500, 1.25, 15, [['bulmaPct', 0.02, 'Loot Bulma visits +2%'], ['sgTriple', 0.01, 'Triple Star chance +1%']], [59, 17, 21, 7, 46]],
+    ['capricorn', 'Capricorn', 300, 1.25, 20, [['xpPct', 0.15, 'Power Level gain +15%'], ['itemDurPct', 0.01, 'Item duration +1%']], [2, 30, 57, 54, 5]],
+    ['aquarius', 'Aquarius', 3000, 1.25, 10, [['refineMinus', 0.1, 'Parts per alloy -1%'], ['bugGold', 0.01, 'Golden Loot Bulma chance +1%']], [12, 51, 34, 17, 29]],
+    ['pisces', 'Pisces', 100000, 1.25, 2, [['rainbowX', 10, 'Rainbow floor parts +10x']], [60, 50, 46, 53, 55]],
+    ['ophiuchus', 'Ophiuchus', 125000, 1.25, 2, [['freebieBank', 1, 'Banked Freebie +1'], ['bugBank', 1, 'Banked Loot Bulma +1']], [48, 45, 52, 56, 64]],
+    ['orion', 'Orion', 125000, 1.25, 20, [['tenRefine', 0.001, '10x refine chance +0.1%'], ['goldenOreCh', 0.0025, 'Golden machine chance +0.25%']], [65, 67, 69, 73, 75]],
+    ['hercules', 'Hercules', 175000, 1.25, 20, [['sgNova', 0.0015, 'Supernova chance +0.15%'], ['goldenOreXPct', 0.08, 'Golden machine parts +8%']], [68, 73, 76, 78, 83]],
+    ['draco', 'Draco', 250000, 1.25, 20, [['galacticCh', 0.0025, 'Galactic floor chance +0.25%'], ['galacticX', 1, 'Galactic floor parts +10%']], [86, 84, 82, 88, 90]],
+    ['cetus', 'Cetus', 1020000, 1.25, 20, [['yieldPct', 0.02, 'Parts from every machine +2%']], [95, 94, 91, 98, 99]],
+    ['phoenix', 'Phoenix', 2020000, 1.25, 18, [['compPct', 0.03, 'Z-Fighter damage +3%']], [92, 97, 100, 93, 102]]
+  ].map(([id, name, base, g, cap, perks, floors], i) => ({ id, name, base, g, cap, perks, floors, i }));
+  const SG_STAR = Object.fromEntries(SG_STARS.map((s) => [s.id, s]));
+  const SG_EARLY = ['magma', 'space', 'cloud', 'virtual', 'atomic', 'deepsea', 'beach', 'valley'];
+  const SG_MID = ['atomic', 'beach', 'space', 'valley', 'magma', 'cloud', 'virtual'];
+  const SG_LATE = ['jurassic', 'jungle', 'deepsea', 'roman', 'volcano', 'industrial', 'valley', 'warfront', 'neon'];
+  // Telescope upgrades, paid in Veins (every 5th level in Super Stars). [id, name, text, key, per, max, telescope level, level 1 cost, growth, vein cycle, Super Star costs]
+  const SG_UPS = [
+    ['auto', 'Auto-catch Stars', 'Chance to catch a Star automatically +3%', 'sgAuto', 0.03, 15, 0, 5500, 1.25, SG_EARLY, [10, 25, 50]],
+    ['spawn', 'Star Spawn Rate', 'Stars appear 5% more often', 'sgSpawn', 0.05, 20, 0, 6500, 1.25, SG_EARLY, [10, 25, 50, 100]],
+    ['dbl', 'Double Star Chance', '+5% chance for 2 Stars at once', 'sgDouble', 0.05, 20, 0, 7500, 1.25, SG_EARLY, [10, 25, 50, 100]],
+    ['sspawn', 'Super Star Spawn Rate', 'Super Stars appear 2% more often', 'sgSuperSpawn', 0.02, 25, 0, 9500, 1.25, SG_EARLY, [10, 25, 50, 100, 250]],
+    ['nova', 'Star Supernova Chance', '+0.5% chance a Star is a Supernova (x10)', 'sgNova', 0.005, 25, 10, 50000, 1.3, SG_MID, [50, 100, 250, 500, 1000]],
+    ['ss10', 'Super Star 10x Chance', '+0.2% chance for 10 Super Stars at once', 'sgSS10', 0.002, 25, 12, 95000, 1.3, SG_MID, [100, 250, 500, 1000, 2500]],
+    ['giant', 'Star Supergiant Chance', '+0.2% chance a Star is a Supergiant (x3)', 'sgGiant', 0.002, 25, 14, 1000000, 1.3, SG_LATE, [250, 500, 1000, 2500, 5000]],
+    ['cap', 'Capper Upper', '+1 level cap on the first four upgrades', 'sgUpCap', 1, 5, 17, 500000000, 1.3, SG_LATE, []],
+    ['ssgiant', 'Super Star Supergiant Chance', '+0.15% chance a Super Star is a Supergiant', 'sgSSGiant', 0.0015, 20, 18, 35000000000, 1.3, SG_LATE, [1000, 2500, 5000, 10000]],
+    ['all', 'All Star Multiplier', 'Every Star is worth +0.01x', 'sgAll', 0.01, 30, 18, 60000000000, 1.45, SG_LATE, [2500, 5000, 10000, 25000, 50000, 100000]]
+  ].map(([id, name, txt, key, per, max, tel, base, g, cyc, ss]) => ({ id, name, txt, key, per, max, tel, base, g, cyc, ss }));
+  const SG_UP = Object.fromEntries(SG_UPS.map((u) => [u.id, u]));
+  const SG_TEL = [['stone', 1], ['magma', 1], ['virtual', 5469], ['space', 6836], [null, 10], ['atomic', 10680], ['cloud', 13350], ['beach', 16687], [null, 100], ['valley', 26080], ['cloud', 32600], [null, 500], ['valley', 50930], ['jurassic', 63662], ['roman', 1.11e6], ['industrial', 4.16e6], ['warfront', 15.6e6], ['neon', 58.5e6]];
+  const SG_TEL_MAX = SG_TEL.length;
+  // Super Star upgrades: [id, name, text, key, per, max, telescope level, levels of the one before, level 1 cost, growth]
+  const SG_SUPS = [
+    ['rvein', 'Rainbow Vein Chance', '+1% (a golden Vein can be rainbow: x20 Veins)', 'rainbowVeinCh', 0.01, 10, 0, 0, 15, 1.3],
+    ['dct', 'Double Contract Points', '+2% chance', 'ct2x', 0.02, 10, 0, 5, 20, 1.3],
+    ['xp', 'Experience', 'Power Level gain +25%', 'xpPct', 0.25, 10, 0, 5, 25, 1.3],
+    ['idur', 'Item Duration', '+3%', 'itemDurPct', 0.03, 10, 0, 5, 30, 1.3],
+    ['speed', 'Game Speed', '+2%', 'speedPct', 0.02, 10, 0, 5, 150, 1.3],
+    ['scap', 'Star Level Caps', '+1 level cap on every Star', 'sgCapAll', 1, 2, 0, 5, 1500, 4.6],
+    ['capa', 'Aries, Gemini, Cancer Cap', '+2 level cap', 'sgCapA', 2, 3, 0, 2, 2000, 1.75],
+    ['capb', 'Virgo, Aquarius, Ophiuchus Cap', '+1 level cap', 'sgCapB', 1, 3, 0, 3, 3500, 1.75],
+    ['gstar', 'Supergiant Star Multiplier', '+10% on a Supergiant', 'sgGiantMul', 0.1, 20, 14, 3, 3000, 1.3],
+    ['gom', 'Golden Machine Multiplier', 'Golden machines pay +0.06x more', 'goldenOreXAdd', 0.06, 15, 17, 15, 50000, 1.25],
+    ['bank', 'Banked Freebies & Loot Bulma', '+1 of each banked', 'sgBank', 1, 5, 17, 5, 100000, 1.3],
+    ['loot', 'Loot Bulma Loot Multiplier', '+1.5%', 'bulmaLoot', 0.015, 20, 18, 1, 875000, 1.35],
+    ['combo', 'Novagiant Combo Multiplier', '+2% when a Star is both Supernova and Supergiant', 'sgCombo', 0.02, 15, 18, 5, 1150000, 1.35]
+  ].map(([id, name, txt, key, per, max, tel, need, base, g]) => ({ id, name, txt, key, per, max, tel, need, base, g }));
+  const SG_SUP = Object.fromEntries(SG_SUPS.map((u) => [u.id, u]));
+  const sgSet = (now) => (Math.imul(Math.floor(now / SG_PERIOD), 2654435761) >>> 0) % 5;
+  const sgNext = (now) => SG_PERIOD - (now % SG_PERIOD);
+  const sgDiscovered = (S) => S.sg.tel; // the first N Stars of the list
+  const sgUnlocked = (S) => SG_STARS.filter((s) => S.sg.lv[s.id]).length;
+  const sgUnlockCost = (S) => (sgUnlocked(S) === 0 ? 1 : 250 * (sgUnlocked(S) + 1)); // Rainbow Capsules
+  function sgBonus(S, add) {
+    for (const st of SG_STARS) if (S.sg.lv[st.id]) add(st.perks.map((p) => [p[0], p[1]]), S.sg.lv[st.id]);
+    for (const u of SG_UPS) if (S.sg.up[u.id]) add([[u.key, u.per]], S.sg.up[u.id]);
+    for (const u of SG_SUPS) if (S.sg.su[u.id]) { if (u.key === 'sgBank') add([['freebieBank', 1], ['bugBank', 1]], S.sg.su[u.id]); else add([[u.key, u.per]], S.sg.su[u.id]); }
+  }
+  const sgStarCap = (S, st, B) => st.cap + b0(B, 'sgCapAll') + (['aries', 'gemini', 'cancer'].includes(st.id) ? b0(B, 'sgCapA') : 0) + (['virgo', 'aquarius', 'ophiuchus'].includes(st.id) ? b0(B, 'sgCapB') : 0);
+  const sgUpMax = (S, u) => u.max + (['auto', 'spawn', 'dbl', 'sspawn'].includes(u.id) ? S.sg.up.cap || 0 : 0);
+  // cost to buy the next level: { z: vein id | null, n }, null = Super Stars
+  function sgUpCost(S, u) {
+    const lv = (S.sg.up[u.id] || 0) + 1;
+    if (u.id === 'tel') return null;
+    if (lv % 5 === 0 && u.ss.length) { const k = lv / 5 - 1; return { z: null, n: u.ss[Math.min(k, u.ss.length - 1)] * (k >= u.ss.length ? Math.pow(2.5, k - u.ss.length + 1) : 1) }; }
+    return { z: u.cyc[(lv - 1) % u.cyc.length], n: Math.round(u.base * Math.pow(u.g, lv - 1)) };
+  }
+  const sgTelCost = (S) => { const c = SG_TEL[S.sg.tel]; return c ? { z: c[0], n: c[1] } : null; };
+  const sgSupCost = (S, u) => Math.round(u.base * Math.pow(u.g, (S.sg.su[u.id] || 0)));
+  const sgStarCost = (S, st) => Math.round(st.base * Math.pow(st.g, S.sg.lv[st.id] - 1));
+  const sgCanPay = (S, c) => c && (c.z ? (S.cons.veins[c.z] || 0) >= c.n : S.sg.ss >= c.n);
+  const sgPay = (S, c) => { if (c.z) S.cons.veins[c.z] -= c.n; else S.sg.ss -= c.n; };
+  function sgUnlockStar(S, id) {
+    const st = SG_STAR[id];
+    if (!st || S.sg.lv[id] || st.i >= sgDiscovered(S) || S.caps < sgUnlockCost(S)) return false;
+    petRoll(S, null, 'whale', sgUnlockCost(S));
+    S.caps -= sgUnlockCost(S);
+    S.sg.lv[id] = 1;
+    return true;
+  }
+  function sgLevelStar(S, id) {
+    const st = SG_STAR[id], B = bonus(S);
+    if (!st || !S.sg.lv[id] || S.sg.lv[id] >= sgStarCap(S, st, B) || (S.sg.n[id] || 0) < sgStarCost(S, st)) return false;
+    S.sg.n[id] -= sgStarCost(S, st);
+    S.sg.lv[id]++;
+    return true;
+  }
+  function sgBuyTel(S) {
+    const c = sgTelCost(S);
+    if (!c || !sgCanPay(S, c)) return false;
+    sgPay(S, c);
+    S.sg.tel++;
+    return true;
+  }
+  const sgUpOpen = (S, u) => S.sg.tel >= u.tel;
+  function sgBuyUp(S, id) {
+    const u = SG_UP[id];
+    if (!u || !sgUpOpen(S, u) || (S.sg.up[id] || 0) >= sgUpMax(S, u)) return false;
+    const c = sgUpCost(S, u);
+    if (!sgCanPay(S, c)) return false;
+    sgPay(S, c);
+    S.sg.up[id] = (S.sg.up[id] || 0) + 1;
+    return true;
+  }
+  // a Super Star upgrade opens with the Telescope level and levels in the one before it
+  function sgSupOpen(S, u) {
+    const i = SG_SUPS.indexOf(u);
+    return S.sg.tel >= u.tel && (i === 0 || u.need === 0 || (S.sg.su[SG_SUPS[i - 1].id] || 0) >= u.need);
+  }
+  function sgBuySup(S, id) {
+    const u = SG_SUP[id];
+    if (!u || !sgSupOpen(S, u) || (S.sg.su[id] || 0) >= u.max || S.sg.ss < sgSupCost(S, u)) return false;
+    S.sg.ss -= sgSupCost(S, u);
+    S.sg.su[id] = (S.sg.su[id] || 0) + 1;
+    return true;
+  }
+  // what one Star (or Super Star) is worth
+  function sgValue(S, B, sup, st) {
+    const nova = Math.random() < b0(B, sup ? 'sgSSNova' : 'sgNova'), giant = Math.random() < b0(B, sup ? 'sgSSGiant' : 'sgGiant'), rad = Math.random() < b0(B, sup ? 'sgSSRad' : 'sgRad');
+    let v = (1 + b0(B, 'sgAll')) * (1 + cardVal(S, 'x_ss'));
+    if (!sup && st) v *= 1 + cardVal(S, 's_' + st.id);
+    if (nova) v *= 10;
+    if (giant) v *= 3 * (1 + b0(B, 'sgGiantMul'));
+    if (nova && giant) v *= 1 + b0(B, 'sgCombo');
+    if (rad) v *= 10 * (1 + b0(B, sup ? 'sgSSRadMul' : 'sgRadMul'));
+    return { v, tag: nova && giant ? 'NOVAGIANT' : nova ? 'SUPERNOVA' : giant ? 'SUPERGIANT' : rad ? 'RADIANT' : '' };
+  }
+  function sgGain(S, W, st, sup, val, at) {
+    if (sup) { S.sg.ss += val.v; petRoll(S, W, 'starfish', 1); S.chal.c.ssCaught = (S.chal.c.ssCaught || 0) + 1; } else { S.sg.n[st.id] = (S.sg.n[st.id] || 0) + val.v; if (/GIANT/.test(val.tag)) S.chal.c.giants = (S.chal.c.giants || 0) + 1; }
+    S.stats.stars = (S.stats.stars || 0) + (sup ? 0 : 1);
+    cardRoll(S, W, sup ? 'x_ss' : 's_' + st.id, val.v);
+    emit(W, { type: 'starGot', x: at.x, y: at.y, sup, name: st.name, v: val.v, tag: val.tag });
+  }
+  function sgSpawn(S, W, B, st, sup) {
+    const val = sgValue(S, B, sup, st), bd = W.bounds;
+    const at = { x: bd.x0 - 6, y: bd.y0 + 20 + Math.random() * Math.max(10, (bd.y1 - bd.y0) * 0.45) };
+    if (Math.random() < b0(B, 'sgAuto')) { sgGain(S, W, st, sup, val, at); return; }
+    W.stars.push({ x: at.x, y: at.y, vx: 7 + Math.random() * 3, t: 0, ph: Math.random() * 6, sup, st: st.id, val });
+    emit(W, { type: 'starSpawn', sup, name: st.name });
+  }
+  // clearing a floor: each Star on this floor right now rolls to appear (and an extra Super Star with it)
+  function sgClear(S, W) {
+    const B = bonus(S), set = sgSet(Date.now()), mult = 1 + b0(B, 'sgSpawn');
+    for (const st of SG_STARS) {
+      if (!S.sg.lv[st.id] || st.floors[set] !== S.floor || Math.random() >= SG_ONCE * mult) continue;
+      const r = Math.random(), tri = b0(B, 'sgTriple'), n = r < tri ? 3 : r < tri + b0(B, 'sgDouble') ? 2 : 1;
+      for (let i = 0; i < n; i++) sgSpawn(S, W, B, st, false);
+      if (Math.random() < SG_SUPER * (1 + b0(B, 'sgSuperSpawn')) * mult) { // 1/100 each time a Star appears; the spawn rate raises it too
+        const k = Math.random() < b0(B, 'sgSS10') ? 10 : Math.random() < b0(B, 'sgSSTriple') ? 3 : 1;
+        for (let i = 0; i < k; i++) sgSpawn(S, W, B, st, true);
+      }
+    }
+  }
+  function catchStar(S, W, i) {
+    const st = W.stars[i];
+    if (!st) return null;
+    W.stars.splice(i, 1);
+    const star = SG_STAR[st.st];
+    sgGain(S, W, star, st.sup, st.val, { x: st.x, y: st.y });
+    return (st.sup ? 'BLACK STAR BALL +' : star.name.toUpperCase() + ' STAR +') + fmt(Math.round(st.val.v * 100) / 100) + (st.val.tag ? ' ' + st.val.tag : '');
+  }
+  // offline: you gain the Stars of the floor you are on (spawns x auto-catch x 1/5 of the floor sets)
+  function sgOffline(S, C, clears, out) {
+    const B = bonus(S), set = sgSet(Date.now()), mult = 1 + b0(B, 'sgSpawn'), auto = Math.min(1, b0(B, 'sgAuto'));
+    const many = 1 + b0(B, 'sgDouble') + 2 * b0(B, 'sgTriple');
+    const ev = (sup) => (1 + b0(B, 'sgAll')) * (1 + cardVal(S, 'x_ss')) * (1 + 9 * b0(B, sup ? 'sgSSNova' : 'sgNova')) * (1 + b0(B, sup ? 'sgSSGiant' : 'sgGiant') * (3 * (1 + b0(B, 'sgGiantMul')) - 1));
+    let got = 0, ss = 0;
+    for (const st of SG_STARS) {
+      if (!S.sg.lv[st.id] || st.floors[set] !== S.floor) continue;
+      const spawns = clears * SG_ONCE * mult, v = spawns * many * auto * 0.2 * ev(false) * (1 + cardVal(S, 's_' + st.id));
+      const sv = clears * SG_ONCE * mult * SG_SUPER * mult * (1 + b0(B, 'sgSuperSpawn')) * auto * 0.2 * ev(true) * (1 + 9 * b0(B, 'sgSS10'));
+      S.sg.n[st.id] = (S.sg.n[st.id] || 0) + v; S.sg.ss += sv; got += v; ss += sv;
+    }
+    if (got + ss > 0) out.stars = { n: got, ss };
+  }
+
   // ------------------------------------------------------------------ Cards (Monolith 10; kept through Zenkai)
-  // A card for every machine, alloy, Z-Fighter, form step, Technique, item and region, plus a few misc ones.
-  // Owning one gives +5% to its own thing; a Transformed card (golden, paid in Rainbow Capsules) gives x3 that.
-  // Drops: each action rolls once, its chances added up (a kill dropping 12 parts rolls 12 x the per-part chance).
-  // Offline: one roll per missing card with everything you did while away added up (so at most one of each).
-  // S.cards = { id: 1 (owned) | 3 (Transformed) }
+  // The wiki's card system. A card drops from the thing it is for (odds add up within one action; offline rolls once per
+  // card with everything done while away added up). Gild a card (Zeni + Zenkai Points + Rainbow Capsules) for more, and with
+  // the "This Is Gonna Take A While.." skill turn a Gilded card Polychrome with 10 Polychrome Shards.
+  // Ore cards are our machine cards, Bar cards our Capsule Alloy cards, Bomb cards our Technique cards; Z-Fighter and form
+  // cards are ours (Z-Fighters stand in for drones). Infernal cards are not in yet.
+  // S.cards = { id: 1 (standard) | 2 (gilded) | 3 (polychrome) }, S.shards = { id: n }
   const CARDS = [];
-  const card = (id, kind, name, how, perk, p, caps, extra) => CARDS.push(Object.assign({ id, kind, name, how, perk, p, caps }, extra));
-  MACHINES.forEach((m) => card('m' + m.t, 'machine', m.name, 'Destroy ' + m.name + 's', 'parts from ' + m.name + 's', 1 / (250 * Math.pow(1.12, m.t)), 15 + 3 * m.t, { m: m.id }));
-  MACHINES.forEach((m) => card('a' + m.t, 'alloy', m.part + ' Alloy', 'Refine ' + m.part + ' Alloy (or Smelt them)', 'alloy from refining ' + m.part + 's', 1 / (200 * Math.pow(1.1, m.t)), 15 + 3 * m.t, { m: m.id }));
-  HELPERS.forEach((h) => card('f_' + h.id, 'fighter', h.name, 'Let ' + h.name + ' fight', h.name + "'s damage", 1 / 20000, 80, { h: h.id }));
-  for (let k = 1; k < FORM_TIERS.length; k++) card('form' + k, 'form', formName(k), 'Stay in this form', 'less Ki drain in this form', 1 / 900, 100, { tier: k });
-  for (const k of TECH_KEYS) card('t_' + k, 'tech', TECHS[k].name, 'Use ' + TECHS[k].name, 'faster ' + TECHS[k].name + ' cooldown', 1 / 120, 60, { tk: k });
-  for (const k of ITEM_KEYS) card('i_' + k, 'item', ITEMS[k].name, 'Use ' + ITEMS[k].name, ITEMS[k].dur === 0 ? 'chance to keep the ' + ITEMS[k].name : 'longer ' + ITEMS[k].name, 1 / 25, 40, { ik: k });
-  REGIONS.forEach((r, i) => card('r' + i, 'region', r.name, 'Go down floors in ' + r.name, 'Power Level XP in ' + r.name, 1 / 60, 50, { region: i }));
-  card('x_mono', 'misc', 'Katchin', 'Break a Katchin Monolith (always drops)', 'damage to the Monolith', 0, 120);
-  card('x_bulma', 'misc', 'Loot Bulma', 'Catch Loot Bulma', "Loot Bulma's Zeni prize", 1 / 8, 100);
-  card('x_zenkai', 'misc', 'Zenkai', 'Go Zenkai', 'Zenkai Points', 1 / 3, 120);
-  card('x_chest', 'misc', 'Capsule Chest', 'Open chests', 'chest meter fill', 1 / 300, 100);
-  card('x_contract', 'misc', "Bulma's Order", 'Finish Contracts', 'Contract Points', 1 / 15, 100);
-  card('x_goal', 'misc', 'Training Goal', 'Claim Training Goals', 'Training Goal Zeni', 1 / 8, 80);
-  card('x_crit', 'misc', 'Critical Hit', 'Land SUPER crits or better with the disc', 'crit damage', 1 / 4000, 100);
-  card('x_beam', 'misc', 'Ki Beam', 'Fire the Ki Beam', 'Ki Beam damage', 1 / 600, 100);
+  const GAIN = [0.5, 1, 3]; // x1.5 / x2 / x4
+  const card = (id, kind, name, how, perk, unit, eff, p, pp, cost, extra) => CARDS.push(Object.assign({ id, kind, name, how, perk, unit, eff, p, pp, cost: Object.assign({ zeni: 25e6 }, cost) }, extra));
+  const ORE_ODDS = [[5e6, 5e9], [2e7, 2e10], [5e11, 5e12]], BAR_ODDS = [[2.5e6, 5e10], [1e7, 2e11], [5e13, 1.5e14]], VEIN_ODDS = [[5000, 5e5], [20000, 2e6], [2.5e7, 5e7]];
+  MACHINES.forEach((m) => {
+    const o = ORE_ODDS[m.planet], gems = m.t < 46 ? 50 + 10 * m.t : m.t - 46 < 20 ? 1500 : m.t - 46 < 31 ? 125000 : 1250000;
+    card('m' + m.t, 'machine', m.name, 'Destroy ' + m.name + 's', 'parts from ' + m.name + 's', 'x', GAIN, 1 / o[0], 1 / o[1], { zp: m.t < 46 ? 2.5e5 : 2.5e12, caps: gems }, { m: m.id });
+  });
+  MACHINES.forEach((m) => {
+    const o = BAR_ODDS[m.planet], gems = m.t < 46 ? 50 + 10 * m.t : m.t - 46 < 20 ? 1500 : m.t - 46 < 31 ? 125000 : 1250000;
+    card('a' + m.t, 'alloy', m.part + ' Alloy', 'Refine ' + m.part + ' Alloy (or Smelt them)', 'alloy from refining ' + m.part + 's', 'x', GAIN, 1 / o[0], 1 / o[1], { zp: m.t < 46 ? 2.5e5 : 2.5e12, caps: gems }, { m: m.id });
+  });
+  TECH_KEYS.forEach((k, i) => card('t_' + k, 'tech', TECHS[k].name, 'Use ' + TECHS[k].name, 'when ' + TECHS[k].name + ' recharges', 'extra', [0.5, 1, 2], 1 / 5000, 1 / 1e5, { zp: 2.5e5, caps: 100 + 25 * i }, { tk: k }));
+  VEINS.forEach((v) => {
+    const o = VEIN_ODDS[planetOf(v.from)];
+    card('v_' + v.id, 'vein', v.name + ' Vein', 'Collect ' + v.name + ' Veins', 'Veins from ' + v.name, 'x', GAIN, 1 / o[0], 1 / o[1], { zp: 2.5e6 + 5e5 * v.i, caps: v.i < 16 ? 500 + 100 * v.i : v.i < 19 ? 250000 : v.i === 19 ? 1e6 : 2.5e6 }, { zone: v.id });
+  });
+  HELPERS.forEach((h, i) => card('f_' + h.id, 'fighter', h.name, 'Let ' + h.name + ' fight', h.name + "'s damage", 'x', [0.25, 0.5, 1], 1 / 50000, 1 / 200000, { zp: 2e6 + 25e4 * i, caps: 1000 }, { h: h.id }));
+  for (let k = 1; k < FORM_TIERS.length; k++) card('form' + k, 'form', formName(k), 'Stay in this form', 'Ki drain in this form', 'cut', [0.05, 0.1, 0.2], 1 / 900, 1 / 3600, { zp: 2e6, caps: 1000 }, { tier: k });
+  SG_STARS.forEach((st, i) => {
+    const early = i < 13, SC = { zp: early ? 1e8 : 5.5e12, caps: early ? 1000 : 2500 };
+    card('s_' + st.id, 'star', st.name, 'Catch ' + st.name + ' stars', 'stars from ' + st.name, 'x', GAIN, 1 / (early ? 12345 : 500000), 1 / (early ? 34567 : 1e6), SC, { star: st.id });
+  });
+  const MISC = { zp: 2.5e5, caps: 1500 };
+  card('x_ss', 'misc', 'Super Star', 'Catch Super Stars', 'value of every star', 'x', [0.05, 0.1, 0.2], 1 / 37373, 1 / 73737, MISC);
+  card('x_zenkai', 'misc', 'Zenkai', 'Go Zenkai', 'floor clears needed', 'cut', [0.05, 0.1, 0.2], 1 / 175, 1 / 150, MISC);
+  card('x_freebie', 'misc', 'Freebie', 'Claim Freebie Packs', 'Rainbow Capsules per Freebie', 'add', [1, 2, 4], 1 / 1750, 1 / 4000, MISC);
+  card('x_contract', 'misc', "Bulma's Order", 'Finish Contracts', 'Contract Points per order', 'add', [1, 2, 3], 1 / 5000, 1 / 15000, MISC);
+  card('x_golden', 'misc', 'Golden Machine', 'Destroy golden machines', 'golden machine parts', 'x', [0.06, 0.12, 0.24], 1 / 5e5, 1 / 1.5e6, MISC);
+  card('x_rainbow', 'misc', 'Rainbow Machine', 'Destroy rainbow machines', 'rainbow machine parts', 'x', [0.06, 0.12, 0.24], 1 / 3.5e5, 1 / 1e6, MISC);
+  card('x_w1', 'misc', 'Earth', 'Go down floors on Earth', 'Golden floor parts', 'x', [0.06, 0.12, 0.24], 1 / 1e5, 1 / 2e5, MISC);
+  card('x_w2', 'misc', 'Namek', 'Go down floors on Namek', 'Rainbow floor parts', 'x', [0.06, 0.12, 0.24], 1 / 2e5, 1 / 2e5, MISC);
+  card('x_w3', 'misc', 'Sadala', 'Go down floors on Sadala', 'Galactic floor parts', 'x', [0.06, 0.12, 0.24], 1 / 2.5e5, 1 / 2.5e5, MISC);
+  card('x_gvein', 'misc', 'Golden Vein', 'Collect golden Veins', 'golden Vein amount', 'x', [0.08, 0.16, 0.24], 1 / 2.5e5, 1 / 5e5, MISC);
+  card('x_rvein', 'misc', 'Rainbow Vein', 'Collect rainbow Veins', 'rainbow Vein amount', 'x', [0.08, 0.16, 0.24], 1 / 2.5e5, 1 / 5e5, MISC);
+  // ours
+  card('x_mono', 'misc', 'Katchin', 'Break a Katchin Monolith (always drops)', 'damage to the Monolith', 'x', [0.1, 0.25, 0.5], 1, 1 / 4, MISC);
+  card('x_bulma', 'misc', 'Loot Bulma', 'Collect Loot Bulma visits', 'Loot Bulma rewards', 'x', [0.1, 0.2, 0.3], 1 / 2500, 1 / 2500, MISC);
+  card('x_golbug', 'misc', 'Golden Loot Bulma', 'Collect golden Loot Bulma visits', 'golden visit chance', 'add', [0.02, 0.04, 0.06], 1 / 10000, 1 / 10000, MISC);
+  card('x_beam', 'misc', 'Ki Beam', 'Fire the Ki Beam', 'Ki Beam damage', 'x', [0.1, 0.2, 0.4], 1 / 3600, 1 / 14400, MISC);
   const CARD = Object.fromEntries(CARDS.map((c) => [c.id, c]));
-  const CARD_KINDS = [['machine', 'MACHINES'], ['alloy', 'ALLOY'], ['fighter', 'Z-FIGHTERS'], ['form', 'FORMS'], ['tech', 'TECHNIQUES'], ['item', 'ITEMS'], ['region', 'REGIONS'], ['misc', 'MISC']];
-  const CARD_PERK = 0.05;
-  // a card's bonus: 0, +5% owned, +15% Transformed
-  const cardVal = (S, id) => (S.cards && S.cards[id] ? CARD_PERK * S.cards[id] : 0);
+  const CARD_KINDS = [['machine', 'MACHINES'], ['alloy', 'ALLOY'], ['tech', 'TECHNIQUES'], ['vein', 'VEINS'], ['star', 'STARS'], ['fighter', 'Z-FIGHTERS'], ['form', 'FORMS'], ['misc', 'MISC']];
+  const POLY_NEED = 10;
+  const cardTier = (S, id) => (S.cards && S.cards[id]) || 0;
+  // a card's effect at its tier (x cards: add 1 for the multiplier)
+  const cardVal = (S, id) => { const c = CARD[id], t = cardTier(S, id); return c && t ? c.eff[t - 1] : 0; };
+  const techExtra = (v) => Math.floor(v) + (Math.random() < v % 1 ? 1 : 0);
+  function cardFx(K, t) {
+    const v = K.eff[t - 1], r = (x) => String(Math.round(x * 100) / 100);
+    return K.unit === 'x' ? 'x' + r(1 + v) : K.unit === 'cut' ? '-' + r(v * 100) + '%' : K.unit === 'extra' ? (v < 1 ? r(v * 100) + '% for +1 charge' : '+' + v + ' charges') : '+' + (v < 1 && v > 0 ? r(v * 100) + '%' : v);
+  }
   function cardGive(S, W, id) {
     if (S.cards[id]) return false;
     S.cards[id] = 1;
@@ -1907,19 +2741,33 @@ const IdleCore = (() => {
   }
   // one roll for an action that counts `n` times toward this card (n parts, n seconds, n shots...)
   function cardRoll(S, W, id, n) {
-    if (!has(S, 'cards') || S.cards[id]) return false;
+    if (!has(S, 'cards')) return false;
     const c = CARD[id];
-    if (!c || !c.p) return false;
-    return Math.random() < c.p * n ? cardGive(S, W, id) : false;
+    if (!c) return false;
+    if (!S.cards[id] && Math.random() < c.p * n) cardGive(S, W, id);
+    if (S.skills.poly && c.pp && S.cards[id] !== 3 && Math.random() < c.pp * n) {
+      S.shards[id] = (S.shards[id] || 0) + 1;
+      if (W) emit(W, { type: 'shard', id, n: S.shards[id] });
+    }
+    return true;
   }
-  const transformCost = (id) => CARD[id].caps;
-  function transformCard(S, id) {
-    if (S.cards[id] !== 1 || S.caps < transformCost(id)) return false;
-    S.caps -= transformCost(id);
+  const gildCost = (id) => CARD[id].cost;
+  function cardGild(S, id) {
+    const c = CARD[id].cost;
+    if (cardTier(S, id) !== 1 || S.zeni < c.zeni || S.zenkai.pts < c.zp || S.caps < c.caps) return false;
+    S.zeni -= c.zeni; S.zenkai.pts -= c.zp; S.caps -= c.caps;
+    petRoll(S, null, 'whale', c.caps);
+    S.cards[id] = 2;
+    return true;
+  }
+  function cardPoly(S, id) {
+    if (cardTier(S, id) !== 2 || !S.skills.poly || (S.shards[id] || 0) < POLY_NEED) return false;
+    S.shards[id] -= POLY_NEED;
     S.cards[id] = 3;
     return true;
   }
-  const cardCount = (S) => { let n = 0, g = 0; for (const k of Object.keys(S.cards)) { n++; if (S.cards[k] === 3) g++; } return [n, g]; };
+  // [cards owned, Gilded or better, total counting every tier]: a Gilded or Polychrome card counts again for "cards owned" bonuses
+  const cardCount = (S) => { let n = 0, g = 0, t = 0; for (const k of Object.keys(S.cards)) { n++; t += S.cards[k]; if (S.cards[k] >= 2) g++; } return [n, g, t]; };
 
   // ------------------------------------------------------------------ Training Goals (5 a day)
   const dayOf = (now) => { const d = new Date(now); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
@@ -1956,9 +2804,9 @@ const IdleCore = (() => {
     const G = goalsFor(S, now);
     const g = G.list[0];
     if (!g || g.have < g.n) return false;
-    const z = Math.round(goalReward(S) * (1 + cardVal(S, 'x_goal')));
+    const z = Math.round(goalReward(S));
     S.zeni += z;
-    cardRoll(S, W, 'x_goal', 1);
+    S.chal.c.goals = (S.chal.c.goals || 0) + 1;
     G.done++;
     G.list.shift();
     let bonus;
@@ -1992,9 +2840,12 @@ const IdleCore = (() => {
     const hrs = e / 3600;
     if (has(S, 'itemChests')) { const c = sround(hrs * TUNE.offItemPerH * C.offChestX); S.chests.item += c; out.chests.item = c; }
     if (has(S, 'superChests')) { const c = sround(hrs * TUNE.offSuperPerH * C.offChestX); S.chests.super += c; out.chests.super = c; }
+    const bn = Math.min(C.bulmaBank - S.bulma.bank, Math.floor(e / (TUNE.bulmaMin * C.bulmaEvery)));
+    if (bn > 0) { S.bulma.bank += bn; out.bugs = bn; }
     if (!has(S, 'companions')) return out;
     const odds = {};
-    const addOdds = (id, n) => { if (CARD[id] && !S.cards[id]) odds[id] = (odds[id] || 0) + CARD[id].p * n; };
+    const sodds = {};
+    const addOdds = (id, n) => { const c = CARD[id]; if (!c) return; if (!S.cards[id]) odds[id] = (odds[id] || 0) + c.p * n; if (S.skills.poly && c.pp) sodds[id] = (sodds[id] || 0) + c.pp * n; };
     const pool = floorPool(S.floor);
     let perKill = 0;
     for (const [m, w] of pool) {
@@ -2013,7 +2864,7 @@ const IdleCore = (() => {
       for (const [m, w] of pool) {
         const n = Math.round(kills * w);
         if (n <= 0) continue;
-        const id = MACHINES[m].id, q = Math.round(n * C.yieldMult * floorMult(S, C) * TUNE.offlineEff);
+        const id = MACHINES[m].id, q = Math.round(n * C.yieldMult * floorMult(S, C) * (1 + C.goldenOreCh * (C.goldenOreX - 1)) * TUNE.offlineEff);
         S.parts[id] = (S.parts[id] || 0) + q;
         S.seen[id] = 1;
         S.run.got[id] = (S.run.got[id] || 0) + q;
@@ -2022,11 +2873,18 @@ const IdleCore = (() => {
         out.xp += n * machXp(m) * 0.2; // Power Level mostly comes from your own training
       }
       out.kills = kills;
+      if (S.sg.tel > 0 && has(S, 'stars')) sgOffline(S, C, kills / Math.max(1, C.maxNodes), out);
       S.stats.kills += kills; S.run.kills += kills;
+      const vz = veinZoneOf(S.floor); // veins while away: x0.85 (wiki Offline)
+      if (vz && S.cons.unl[vz.id]) { const v = Math.floor(kills * veinChance(S, C, vz) * C.veinInc * (1 + C.goldenVeinCh * (C.goldenVeinX - 1)) * 0.85 * (1 + cardVal(S, 'v_' + vz.id))); S.cons.veins[vz.id] = (S.cons.veins[vz.id] || 0) + v; out.veins = v; addOdds('v_' + vz.id, v); }
     }
     for (const h of HELPERS) if (cl(S, h.id)) { const hs = helperStats(S, C, h); addOdds('f_' + h.id, (t / hs.every) * hs.shots); }
     out.cards = [];
-    if (has(S, 'cards')) for (const id of Object.keys(odds)) if (Math.random() < odds[id] && cardGive(S, null, id)) out.cards.push(id);
+    out.shards = [];
+    if (has(S, 'cards')) {
+      for (const id of Object.keys(odds)) if (Math.random() < odds[id] && cardGive(S, null, id)) out.cards.push(id);
+      for (const id of Object.keys(sodds)) if (Math.random() < sodds[id]) { S.shards[id] = (S.shards[id] || 0) + 1; out.shards.push(id); }
+    }
     if (out.xp) addXp(S, null, out.xp);
     return out;
   }
@@ -2057,13 +2915,17 @@ const IdleCore = (() => {
     machHp, machArmor, partValue, machXp, xpNext, regionOf, planetOf, floorPool, has, unlockAt, levelCap, effDmg, monoHp, monoArmor, floorNeed,
     CRIT_TIERS, critEff, critSplit, critMult, rollCrit, itemPrice, helperStats, traitVal, compUpCost, zkCost, zkTierOpen, wsOpen, wsCost, skillRowAt, skillRowOpen, skillParent, techOpen, techReady,
     newState, migrate, calc, bonus, planetsOpen, upCost, canAfford, partReachable, newWorld, spawnNode, tick, canDescend, setFloor,
-    floorsFor, farmFloor, useTech, buyUp, buyWs, sell, refine, hire, upHelper, buyItem, useItem, openChests, catchBulma,
+    floorsFor, farmFloor, useTech, buyUp, buyWs, sell, refine, hire, upHelper, buyItem, useItem, openChests, catchBulma, claimBulmaBank, buyBulmaOffer, BUG_BUFFS, BUG_GEM, BUG_COST, bugCost,
+    VALUE_PACKS, openGifts, vpOpen, vpBuy,
+    PETS, PET_CAP, petTotal, petCap, petChance, petBuy, petSkin, petOpen,
     monoReady, monoReward, startMono, quitMono, buySkill, buyStore, checkWishes, zenkaiGain, zenkai, buyZk,
     goalsFor, goalReward, claimGoal, offline, fmt, fmtTime, zpZeni, zpCost, zpMax, buyZp,
     FIGHTERS, FORM_TIERS, fighterOf, formLook, formOpen, formsOpenTop, transform, selectForm, helperView,
     CT_UPS, CT_BY, ctOpen, ctMax, ctUpCost, ctCurrent, ctDeliver, ctReroll, buyCt,
-    CARDS, CARD, CARD_KINDS, CARD_PERK, cardVal, transformCost, transformCard, cardCount,
-    BEAM_UPS, BEAM_KEYS, BEAM_LOOKS, BEAM_LOOK, beamCost, buyBeam, setWeapon, lookOwned, beamLookOf, setBeamLook, beamRays,
+    SG_STARS, SG_UPS, SG_SUPS, SG_TEL_MAX, sgSet, sgNext, sgDiscovered, sgUnlocked, sgUnlockCost, sgStarCap, sgUpMax, sgUpCost, sgTelCost, sgSupCost, sgStarCost, sgCanPay, sgUpOpen, sgSupOpen, sgUnlockStar, sgLevelStar, sgBuyTel, sgBuyUp, sgBuySup, catchStar,
+    CARDS, CARD, CARD_KINDS, POLY_NEED, cardVal, cardTier, cardFx, gildCost, cardGild, cardPoly, cardCount,
+    FORM_UPS, FORM_KEYS, fupCost, buyFormUp, BEAM_UPS, BEAM_KEYS, BEAM_LOOKS, BEAM_LOOK, beamCost, buyBeam, setWeapon, lookOwned, beamLookOf, setBeamLook, beamRays,
+    CHALLENGES, CHAL_REWARDS, chalCount, buyChalReward, CHAL_X, CHAL_XREWARDS, chalXCount, chalXOpen, buyChalXReward, VEINS, VEIN, STATUES, MONUMENTS, veinZoneOf, veinChance, researchCost, spawnCost, statueCost, monumentCost, statueGate, statueTier, consOk, researchVein, researchSpawn, buildStatue, buildMonument,
     MODS, ORE_BAR, ORE_FLOORS, REGION_FLOORS, floorMult, ratioOf, refineAvg, upMax, upOpen, pickDmg, zkUnlocked, zkUnlockCost, zkNextLocked, unlockZk
   };
 })();

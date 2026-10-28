@@ -153,7 +153,14 @@ v0.7 SHMINER REBALANCE (owner: feature parity with Shminer, EXACT wiki numbers, 
     Skills for missing systems skipped. Auto-Bomber fires one Technique every 1.25s. Scorched Earth kept (ours).
   Sim: bot Zenkais when gain beats the last by 20% (or after 2h at 70%); it buys/fires the new systems.
     Latest 24h (1 run): 18 Monoliths, floor 40 at 14h30; the wall is still floor 43 / Power Level ~95.
-  Not built from the wiki yet: golden/rainbow ores, Veins + Construct + Monuments (Namek should move behind its
+  GOLDEN / RAINBOW MACHINES (wiki Ores + Stats): spawn roll goldenOreCh -> x3 parts (base) x bonuses; rainbow rolls only
+    on golden ones (no source yet: Arcanist spells), rbx modifiers. Sources now: World 3 Contract Golden Ore Chance
+    (+0.2%, 15 lv, M42), Golden Machine card, earn-only Golden Ore Bundle (3000). FIX: "Golden floor = x%" modifiers SET
+    that floor's golden chance (was wrongly a reduction). Contracts W2 rows now real (Golden Floor Multi, Rainbow Floor
+    Multi M28), W3 rows added (M42-45; CP prices ours).
+  PATCH NOTES (owner, from now on): PATCH_NOTES.md + src/patchnotes.js (Menu > Patch Notes). Every change adds a note
+    under "Next update"; on deploy rename it to the version.
+  Not built from the wiki yet: Veins + Construct + Monuments (Namek should move behind its
     Monument), Challenges, Cards (ours differ), Drones (ours on purpose), Skill Tree, Drones vs Z-Fighters (ours on purpose),
     Veins, golden/rainbow ores, Construct/statues, Lootbugs, unlock ORDER (still ours: contracts M8 etc.).
 
@@ -301,10 +308,180 @@ v0.3 and earlier (see IDLE_DESIGN.md): machines + floors + regions, Techniques, 
 ==================================================================================================================
 9. NEXT / BACKLOG
 ==================================================================================================================
-  - Owner's open questions from IDLE_DESIGN.md section 21 (still unanswered): Workshop II at M6 ok? 20-min Monolith
-    cooldown and pacing right for friends? use the unused top-down battle tanks art? should Z-Fighters descend
-    floors while you're away (current) or stay on your floor?
-  - Friends' playtest -> retune TUNE (Monolith growth, chests, Z prices, card odds).
-  - More planets: ROSTER rows (more paints/marks) + REGIONS recipes in build_tiles.py.
-  - KI BEAM: built in v0.6 (section 5). Still open: Death Beam / Final Flash look unlocks (owner will describe
-    the mechanics), beam clash on the Monolith, charge-up.
+  STATE (2026-10-27): v0.7 is LIVE (commit 07b5869). The golden/rainbow machines + patch notes batch is built and
+    tested in the preview but NOT committed or deployed (git status shows it). Its notes are under "Next update" in
+    PATCH_NOTES.md and src/patchnotes.js: on deploy rename that heading to 0.8.
+  Preview: "dbz-idle-2" in ..\.claude\launch.json (port 8767; another session used 8765). Clear the preview save
+    after testing (Storage.prototype.setItem = function(){}; localStorage.removeItem('dbzidle.v1')).
+  Workflow reminders: read wiki pages yourself (https://shminer.miraheze.org/wiki/), exact wiki numbers, show every
+    change in the preview, 24h sim after economy changes (node tools/sim.js 24 0.7 1; ~3-5 min, run in background),
+    add patch notes, wait for "deploy". Write patch scripts with the Write tool (bash heredocs with quotes break).
+
+  BUILT AFTER THAT (all local, uncommitted, notes under "Next update"):
+  - Fixes: Hellzone hits 5x a charge (chainN base 5; it was 1 + Workshop level = 1 hit); Z-Fighter bars no longer
+    reset to 80% on an empty field (they wait full) and a 0 timer no longer re-randomizes; Z-Fighter shots go to the
+    machine with the fewest shots already incoming (even spread, 1 per machine until shots > machines); up to 4
+    volleys a frame at extreme speed.
+  - FORM UPGRADES (owner, Zeni only, ours): DISC sheet > FORMS tab (FORM_UPS in core.js, S.fup, reset by Zenkai):
+    Form Power (+10% x), Size +5%, Speed +4%, Crit +1%, Efficiency (-3% Ki drain), only while transformed.
+  - CONSTRUCT / VEINS / STATUES / MONUMENTS (wiki Veins + Construct): opens M19 (CC tab CONSTRUCT). 16 vein zones
+    (our names = our regions; the wiki's Cloud and Atomic split our one Gero's Lab region), spawn chance (1 x
+    research2x / rarity) per screen, vein nodes drop veins (golden x5, rainbow x20), veins kept through Zenkai.
+    Research costs = wiki (veins of the previous zone + 2 bars), spawn-x2 (capsules + 2 bars). 9 statues x 3 tiers
+    (normal / gilded / platinized at M35) built in random order, wiki bonuses mapped to what we have. MONUMENTS now
+    open Namek (2000 capsules + 2k Stone/Magma/Virtual veins) and Sadala (7500 + 750k Valley/Jungle/Volcano) instead
+    of Monoliths 10/20. Saves from before Construct that had M10+/M20+ keep the planets (migrate). Not built: World 3
+    statues, gleaming veins, World 4. TUNE.constructBarK (1 = exact wiki) scales bar prices.
+  - CHALLENGES (wiki Challenges; Monolith 10, Menu > Challenges): Regular tier only. 49 tasks -> 10 Challenge Coins each ->
+    18 reward upgrades with the wiki's levels / coin cost per level / challenges-needed (core.js CH_ROWS, CHAL_REWARDS,
+    S.chal = {done, coins, buy, c: counters}, kept through Zenkai). Counters: refined/mined/smelted per machine, Technique
+    fires, max Zeni / Ki Power / charge stack, vein totals, Zenkai at level 120/125/200, quick Zenkai, toggles, items used,
+    goals, freebie capsules, fighter switches, patch notes read. OUR TRANSLATIONS (the wiki named drones, pets, codes or
+    huge bomb stacks): #1/17/26 stack goals are 50/150/400 charges (wiki 250/1000/10000 - our capacity is ours and
+    smaller), #2 Ki Blasts instead of Bomb Bear, #3 claim a Training Goal (wiki: enter code OSRS), #5 toggle settings,
+    #21 hire 3 Z-Fighters (wiki: Crab pet), #22 read the Patch Notes (wiki: click Alex's sprite), #23 use 10 items (wiki:
+    fuel Midas), #28 fire 1000 Techniques (wiki: Frogger suit), #33 switch fighter 5x (wiki: roll miner names), #34 catch
+    Loot Bulma 25x (wiki: pet a pet), #39 Z-Fighter Damage level 20 (wiki: Dwarf pet), #40 unlock the 3rd form (wiki: Chain
+    drone grade 5). Others use the wiki's numbers (some, like 666 Spirit Bombs or 35,000 Ki Blasts, are very long).
+    Extreme (26 tasks) and Divine (25) tiers + their reward tables are NOT built (they need stars, pets, fishing, arcanist,
+    stonks...); the next tier should unlock when all of the previous tier is done (wiki).
+  OPEN QUESTION FOR THE OWNER (Construct prices): measured with the 24h bot (1 run): 22 Monoliths, Power Level 107, Ki Power
+    376M, stuck on floor 42 (Namek locked), and it salvaged only 4.25M parts IN TOTAL in 24h. The first vein research alone
+    (Stone: 7.5M Adamant + 7.5M Runite bars) is ~127M parts before refine bonuses, and the whole Namek Monument path
+    (Stone + Magma + Virtual research = ~23.7M bars, ~250M parts, plus 2000 veins of each and 2000 capsules) is far past
+    that. So with TUNE.constructBarK = 1 (exact wiki) Namek is effectively weeks away and the early game ends at floor
+    42. Options put to the owner: keep exact, or scale bars by 0.01 (about 1-3 days) or 0.001 (hours). Veins themselves:
+    1 per ~15 screens on Stone, x2 with research, so 2000 veins is about 1-3 hours of focused play; that part is fine.
+    Existing saves with Monolith 10+ keep Namek (grandfathered in migrate()); everyone else needs the Monument.
+  NEXT STEPS (owner's build order, toward Shminer parity):
+  1. (DONE locally, see above) Veins + Construct + Monuments (wiki Veins, Construct). Veins: per-zone vein type, a machine becomes a vein node at
+     (Vein Spawn multiplier / zone rarity) per screen, drops veins on top of parts, veins survive Zenkai; golden x5,
+     rainbow x20, gleaming x5 veins. Construct opens at Monolith 19: vein research (bars from that zone + previous
+     zone's veins), statues (W1: 9 statues, random order, then gilded, then platinized; bonuses like Disc x3/x5/x8,
+     Zenkai points x2/x3/x5, Artifact cap +1/2/3, -25% floor clears), Monuments unlock worlds: MOVE NAMEK BEHIND THE
+     WORLD 2 MONUMENT (2000 gems + 2k Stone/Magma/Virtual veins) and Sadala behind the World 3 one. Problem to solve:
+     the wiki's prices are in the millions of bars (first research 7.5M Adamant + 7.5M Runite) while our players have
+     thousands. Check bar income after golden ores/relics; if still far off, ask the owner before scaling.
+  2. WIKI SURVEY (owner: "keep combing the wiki, exclude Drones - Z-Fighters are ours"). Pages left, in the order I would
+     build them, with what I learned from each (read the full page when you start it):
+     a. CARDS: DONE (see CARDS REBUILT below). Left for later: Infernal cards, Lootbug/Super Star/Stonks/Void Portal/
+        Miner Name/Sushi/Arch/Fuel/Fishing/Mana misc cards (they wait for those systems), the easter-egg cards, polychrome
+        scaling past x4 (the wiki's 4x-20.95x comes from upgrades we do not have).
+     b. LOOTBUGS: DONE (see LOOT BULMA REBUILT below). Left: Gem Cost Reduction, Lantern, star/fishing/archaeology rewards.
+     c. STARGAZING: DONE (see STARGAZING BUILT below). Left: Black Hole, star wishing/following skills, World 4 stars, Cosmic Candy, Star Radiant/SS tiers that need telescope 19+.
+     d. PETS: DONE (see PETS BUILT below). Left: Mr. Nibbles, Butterfly, Rhino, Pet Quests/ranks, pet cards, Pisces/Archaeology/challenge cap sources.
+     e. GIFTS and VALUE PACKS: DONE (see GIFTS BUILT below).
+     f. ARCHAEOLOGY (M30), FISHING (M37), ARCANIST (M70): each a separate mini-game with its own upgrades (fragments and
+        idols; docks, ticks, fish notices, tributes, legendary fish; essence blocks, altars, spells, wizards, rainbow
+        ores). Big; do last. Arcanist's Rainbow Road spell is the only source of rainbow ores (built, waiting).
+     g. EVENTS (bi-monthly wave mini-game with its own upgrades), CODES (reward codes; skipped), STICKERS / SKINS / PINS
+        (cosmetic + minor rewards), FOUNDER (done as an earn-only Store item), LOOTFROGS (need the Frogger drone: skip).
+     Also unbuilt: Challenges Divine tier (Extreme DONE, see below), World 3 statues, gleaming veins, World 4 (we stop at 3 worlds), the
+     Fuel / Coal systems (drone-only: skip).
+  3. Skill Tree skills skipped for missing systems (drones, fishing, stars, pets, fuel, veins, polychrome, lootbugs,
+     auto-prestige "Take it back now y'all" at M30) - add them as their systems arrive. Same for skipped relics,
+     artifacts (statue ones), upgrades (veins, statues) and Workshop World 3-4 rows.
+  4. Known balance issue: the 24h bot stalls at floor 43 / Power Level ~95 (18-19 Monoliths). Shminer gets past it
+     with Construct statues, veins and more. Re-check after step 1.
+  5. Ours to tune (wiki silent): upgrade Zeni base prices, TUNE.discK (8), TUNE.techCap (10), artifact unlock prices,
+     Perk/Founder/Golden Bundle capsule prices, World 3 Contract CP prices, Sadala gate (M20), item DBZ names.
+  6. Older open items: never tested on a real phone; damage-number clumps (Vegeta barrage, beam); IDLE_DESIGN.md is
+     out of date (HANDOFF is the source of truth).
+
+CARDS REBUILT (after v0.7, "Next update")                                  core.js "Cards" block, ui.js cardTile / SHEETS.cards
+  Replaced our old +5%/Transform-x3 system with the wiki's. S.cards[id] = 1 standard | 2 gilded | 3 polychrome;
+  S.shards[id] = Polychrome Shards; S.cardV = 2 (old saves' cards and shards are wiped in migrate()); both KEEP.
+  Cards (184): machine (our Ore cards, x1.5/x2/x4 parts), alloy (our Bar cards, x alloy), tech (our Bomb cards: on recharge a
+  50% chance of an extra charge, gilded always +1, poly +2), vein ('v_'+zone, x Veins), fighter (OURS, stand in for drone cards:
+  damage x1.25/1.5/2), form (OURS: Ki drain -5/-10/-20%), misc. Misc = x_zenkai (floor clears -5/10/20%), x_freebie (+1/2/4
+  capsules), x_contract (+1/2/3 CP), x_golden, x_rainbow (golden/rainbow machine multi x1.06/1.12/1.24), x_w1/2/3 (Golden /
+  Rainbow / Galactic floor multi, rolled per floor descended on Earth/Namek/Sadala), x_gvein, x_rvein, and OURS x_mono (Katchin,
+  always drops), x_bulma, x_beam. Dropped: item, region, chest, goal, crit cards.
+  Odds are the wiki's (Card Odds table): ore 1/5M (Earth), 1/20M (Namek), 1/500B (Sadala), poly shard 1/5B, 1/20B, 1/5T; bar
+  1/2.5M, 1/10M, 1/50T; vein 1/5k, 1/20k, 1/25M; bomb 1/5000 per use, poly 1/100k; misc table copied where the system exists.
+  Ours (not wiki): fighter 1/50000 per shot (poly 1/200k), form 1/900 per second, Katchin guaranteed + shard 1/4, Bulma 1/8,
+  Ki Beam 1/3600 per second.
+  Gild cost = 25M Zeni + Zenkai Points + capsules: ore/bar 250k ZP (2.5T on Sadala), capsules 50+10t (t<46), 1500/125k/1.25M on
+  Sadala; techs 250k ZP + 100+25i; veins ZP 2.5M+0.5M i, capsules 500+100i (250k/1M/2.5M late); fighters 2M+250k i ZP, 1000;
+  forms 2M ZP, 1000; misc 250k ZP, 1500. (In the wiki PP = Prestige Points = our Zenkai Points; Gold = Zeni; Gems = capsules.)
+  Polychrome needs the Skill Tree skill 'poly' (This Is Gonna Take A While.., row 17, 40 points, Monolith 26): shards only
+  drop once it is owned; 10 shards turn a Gilded card Polychrome. Gilded + Polychrome count as new cards for 'discPerCard'
+  (cardCount(S)[2] = total tiers). Offline: one lump roll per card AND per shard (out.shards).
+  Hooks: cardVal(S,id) = effect at the card's tier (add 1 for x cards); cardRoll(S,W,id,n) rolls card + shard; techExtra(v)
+  for Technique recharge. NOT BUILT: Infernal cards (need their unlock sources: Laviathan Tribute etc.).
+  Sim: bot Gilds the cheapest affordable card and makes Polychrome when it has shards; END prints cards / gilded+ / shards.
+
+  24h sim after Cards (node tools/sim.js 24 0.7 1): same stall as before (Monolith 20 done, floor 42, Namek monument not built);
+  12 cards owned, none Gilded (the bot spends its Zenkai Points on artifacts first), parts salvaged 2.0M (was ~4M: the old
+  +5% machine cards and region/item cards are gone, and run-to-run variance). Cards are now a long chase, as in the wiki.
+  Verified in the preview: tiers render (standard / gold / purple), GILD took exactly 25M Zeni + 250k ZP + 50 capsules,
+  POLYCHROME used 10 shards, no console errors. Preview save cleared. NOT deployed: waiting for the owner's "deploy".
+
+LOOT BULMA REBUILT (the wiki's Lootbugs)                                  core.js "Loot Bulma" block, ui.js SHEETS.bulma
+  Visit every 20 min (TUNE.bulmaMin/Max 1200, x bulmaEvery). Tap = free reward (BUG_FREE weighted table: 2 capsules 30, 1 Item
+  chest 35, 1 SUPER 5, 10 Afterimage 20, x2 parts 2min 15, x3 Vein spawn 2min 20, x2 speed 2min 15 [uses the chamber buff]);
+  all amounts x C.bulmaLoot. A missed visit goes to S.bulma.bank (cap TUNE.bulmaBank 3 [OURS] + bugBank), claimed in Menu >
+  LOOT BULMA (also while offline: one per 20 min). Each visit also adds an offer (S.bulma.offers, max 3) bought for 15 capsules
+  (BUG_GEM table incl. x10 Technique recharge 2min); Golden visits (bugGold + x_golbug card) give it free; Triple visits (bugTriple,
+  Contract 'cttrip') are 3 at once. New buffs bug_ore / bug_vein / bug_tech (BUG_BUFFS) hooked in killNode, veinChance, tech loop.
+  Sources: Contract Triple Loot Bulma, Store Banked cap (+1) and Golden Loot Bulma (+10%), cards x_bulma (loot x1.1/1.2/1.3) and
+  x_golbug. The old Zeni/item prize table is gone. Plane drawn at 2x (PLANE_K) with a bigger tap box; golden = glints, triple = 3 planes.
+  Verified in preview: claim, buy (15 capsules), big plane, no console errors. Sim bot just taps her.
+
+STARGAZING BUILT (Monolith 23)                                             core.js "Stargazing" block, ui.js SHEETS.stars, render.js drawStar
+  18 Stars (Aries..Phoenix, the ones on our 3 planets). S.sg = { tel, up, su, lv, n, ss }: telescope level (= how many Stars are
+  discovered, you pick which to unlock; 1 capsule for the first, 250*(N+1) after), upgrade levels, Super Star upgrade levels, Star
+  levels, Star counts, Super Star count (KEEP, permanent). Floor sets A-E rotate every 30 real minutes (sgSet, hashed clock; the
+  wiki's floor table is copied). floorCleared() -> sgClear: each unlocked Star on the current floor rolls 1/50 x (1 + spawn rate),
+  double/triple chances, and 1/100 x (1+Super Star rate) for a Super Star on top (10x / triple variants). Stars drift across (W.stars),
+  tap = catchStar, or auto-catch (sgAuto) at spawn. Value = (1+All) x card x supernova 10 / supergiant 3 / both / radiant 10.
+  Level cost = base x 1.25^(L-2) in that Star's own count (Leo x3). Perks map to our bonus keys (a few wiki perks swapped: Pisces
+  rainbow +10, Cetus parts +2%, Phoenix Z-Fighter +3%, no pet/fish/drone/Arcanist ones). Telescope/upgrade costs are Veins (cycle by
+  level; every 5th level in Super Stars); the early rows copy the wiki, the late rows are fitted. Telescope capped at 18 (World 4 above).
+  Super Star upgrades (rainbow vein, double CP, XP, item duration, game speed, caps, supergiant, golden machine, banked, Loot Bulma
+  loot, novagiant) chain on the previous one and the Telescope level. Offline: spawns x auto-catch x 1/5 (wiki Option 2: stars of the
+  floor you are on; with no Auto-catch you get nothing). Cards: 18 star cards + x_ss. Super Stars are drawn as Black Star Dragon
+  Balls (owner request; 1-7 black stars). NOT BUILT: Black Hole, wishing/following, World 4 Stars, Cosmic Candy. Sim bot does not play it.
+
+PETS BUILT (Monolith 17)                                                   core.js "Pets" block, ui.js SHEETS.pets
+  13 Pets (wiki names kept; DBZ renames still to do). S.pets = { have: {id: level}, skin: {id: 1} } (KEEP). Price in capsules, needs a
+  total of Pet levels (0,1,5,12,18,28,40,56,75,90,100,140,235); level cap 10 (+ 'petCap': Dino skin). Chance to reach level L =
+  1 / (base x (L-1)), x1.15 with the Skin (a level-5 Skin: bonus + odds). Triggers (petRoll): Crab = Ki Blast fired, Dwarf = Disc Power
+  bought above 25, Duck = Vein depleted, Rabbit = Contract done, Penguin = golden floor spawns, Axolotl = Namek alloy made, Whale = every
+  capsule spent (store, gild, star unlock, Loot Bulma offers, pets), Totem = golden Vein, Happy-Bot = level up at 100+, Leprechaun =
+  rainbow floor cleared, Starfish = Super Star caught, Dino = World 3 Veins, Nagini = golden machine. Level-ups outside tick queue in
+  petQ and show on the next tick (toast). Perks use existing bonus keys (swaps: Happy-Bot Zenkai +4%, Axolotl skin item duration, Duck
+  skin Katchin armor). New keys: petCap, bugCostCut (Whale skin: Loot Bulma offers cost 2 less; UI uses G.bugCost(S)).
+  NOT BUILT: Mr. Nibbles/Butterfly/Rhino, Quests + ranks, Pet cards (the wiki's infernal pet cards), pets leveling offline.
+
+GIFTS AND VALUE PACKS BUILT                                                core.js "Gifts and Value Packs" block, ui.js SHEETS.gifts
+  S.gifts (count), S.vp ({id: 1}) are KEEP. Gifts: 2 per Monolith clear (OURS), 1% of Freebie Packs from Monolith 10 (OURS), Value
+  Pack 'Gift Lovers'. openGifts: base reward at equal odds from 12 (3-5 / 5-10 SUPER chests, 20-40 / 35-60 capsules, 2-5 Skill Bits,
+  x2 parts 10-15 min, Ki Drinks, Senzu 12-20, Time Chambers, Afterimage charges or x2 speed, 25-40 Item chests, x2 parts 20 min), then
+  rare rolls replace it (1/40 3 Gifts, 1/45 80-130 capsules). Left out (no system): fragments, Chaos Totem, sushi, drone fuel, idol tokens,
+  stickers, skins, Divine/Mythic chests, 15k+ gem rolls (Obelisk 60+), star spawn buff. Value Packs: 16 earn-only bundles (price =
+  the gems the paid one gave, in capsules; perks via bonus(); Skill Points and Gifts are one-time grants). New key petChanceX.
+  Skipped packs: anything for drones, fishing, archaeology, arcanist, frogs, void portals, radiant, Black Hole, Divine/Mythic chests,
+  game-completion ones. Gift multipliers table (Obelisk 60+) not built.
+
+EXTREME CHALLENGES BUILT                                                   core.js CX_ROWS / CHAL_XREWARDS, ui.js SHEETS.challenges (tabs)
+  S.chal.xdone / xcoins / xbuy. Open when chalCount == 49 (chalXOpen). 26 tasks (#50-75) with the wiki's numbers where the thing exists;
+  swapped: drone/void-drone/arcanist/frog/World 4 tasks -> Z-Fighter speed 30, Technique capacity 400, Energy Transfers 50k, statues
+  (9 gilded / 9 platinized instead of World 3 statues), Black Star Dragon Balls, supergiants, galactic floors, rainbow veins, golden machines.
+  9 rewards from the wiki's list (damage per Monolith +2% [new key discPerMono], golden floor +1x, Loot Bulma +10%, banked Freebie, Super
+  Star spawn, Pet cap +1, rainbow floors +5%, Technique ULTRA +4%, Galactic +2%). New counters in S.chal.c: noUp46, goldMined, rvein[zone],
+  galFloors, ssCaught, giants. Divine tier (25 tasks, 25 rewards) needs World 4/fishing/arcanist/frogs: not built.
+
+PARTS INCOME AND CONSTRUCT PRICING (owner asked: "multiplier per Z-Fighter ... match up the scrap/ore disparity")
+  Finding: with every Zenkai upgrade maxed, farming the right floor gave ~130K parts/hour in total; the first Stone Vein research
+  alone (7.5M Adamant + 7.5M Runite alloy = ~130M parts) was thousands of hours away. Maxed Zenkai does not touch part yield, there is
+  no ore-gain relic (the wiki has none either), and the wiki's real ore income comes from drones (cut) and its base x2.
+  Changes: TUNE.yieldBase 2 (the wiki's base Ore Income x2) and TUNE.fighterYield 0.1 (+10% parts per hired Z-Fighter, ours) in calc().
+  TUNE.constructBarK 1 -> 0.1 (owner's earlier "keep exact" is superseded by this request: re-check if drones ever come back).
+  Sim results (MAXZK=1 FARMVEIN=1 CBK=0.1, 72h): Stone researched ~9.7h, Magma ~22h, Virtual ~31h; at 72h veins stone 4036, magma 2338,
+  virtual 235; the Monument also needs 2000 capsules, which the bot spends as it earns (a player saves ~2-3 days of Freebies), so Namek
+  lands around day 4-5. CBK=0.03 was no faster (Veins, not bars, become the limit). Standard 24h sim after x2: parts salvaged 12.8M
+  (was 4.3M), Monolith 26 (was 24), still stuck at floor 42 (Namek locked) in that unfocused run.
+  New sim switches: MAXZK=1 (all Zenkai upgrades maxed), FARMVEIN=1 (save + farm the parts the next Vein research needs), CBK=x
+  (Construct price scale). The sim logs 'Veins researched' / 'Monument built' lines (repeats are logged after each Zenkai).
+

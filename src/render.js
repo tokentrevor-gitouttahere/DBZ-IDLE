@@ -286,7 +286,9 @@ const Render = (() => {
       g.putImageData(d, 0, 0);
     });
     const white = idle.map((c) => { const w = mk(c.width, c.height), g = w.getContext('2d'); g.drawImage(c, 0, 0); g.globalCompositeOperation = 'source-atop'; g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height); return w; });
-    const out = { idle, death, white, w: meta.w, h: meta.h };
+    // golden variant: every body pixel pushed toward gold (the rainbow one hue-cycles the gold at draw time)
+    const gold = idle.map((c) => { const g = mk(c.width, c.height), gg = g.getContext('2d'); gg.drawImage(c, 0, 0); const d = gg.getImageData(0, 0, c.width, c.height), a = d.data; for (let i = 0; i < a.length; i += 4) { if (!a[i + 3]) continue; const [, , l] = rgb2hsl(a[i], a[i + 1], a[i + 2]); const [r2, g2, b2] = hsl2rgb(46, 0.95, Math.min(0.85, 0.25 + l * 0.85)); a[i] = r2; a[i + 1] = g2; a[i + 2] = b2; } gg.putImageData(d, 0, 0); return g; });
+    const out = { idle, death, white, gold, w: meta.w, h: meta.h };
     cache.mach[m.id] = out;
     return out;
   }
@@ -437,14 +439,48 @@ const Render = (() => {
     '....kkk.....kkk.......'
   ];
   const PCOL = { k: INK, w: '#f2efe6', y: '#ffd34d', b: '#5fb8ff', r: '#e8443a', p: '#c9d6e3' };
+  // a Star: a pixel star drifting across the field (Super Stars are bigger and shimmer)
+  const STAR_PX = ['..#..', '.###.', '#####', '.###.', '..#..'];
+  // Super Stars are Black Star Dragon Balls: an orange ball with 1-7 black stars (their own number is random)
+  const BALL_N = [[[0, 0]], [[-2, -1], [2, 1]], [[-2, -2], [2, -1], [0, 2]], [[-2, -2], [2, -2], [-2, 2], [2, 2]], [[-2, -2], [2, -2], [0, 0], [-2, 2], [2, 2]], [[-2, -3], [2, -3], [-2, 0], [2, 0], [-2, 3], [2, 3]], [[0, -3], [-3, -1], [3, -1], [-2, 2], [2, 2], [0, 0], [0, 4]]];
+  const BALL = (() => {
+    const R = 6, rows = [];
+    for (let y = -R; y <= R; y++) { let row = ''; for (let x = -R; x <= R; x++) { const d = Math.hypot(x, y); row += d > R + 0.3 ? '.' : d > R - 1 ? 'o' : (x + y < -R * 0.9 ? 'h' : x + y > R * 0.7 ? 's' : 'b'); } rows.push(row); }
+    return rows;
+  })();
+  const BALL_COL = { o: '#6b2f06', b: '#f08a1c', h: '#ffc866', s: '#b45a0c' };
+  function drawStar(st) {
+    const bob = Math.sin(t * 5 + st.ph) * 1.5;
+    if (st.sup) {
+      const k = 2, X = Math.round(st.x - 6.5 * k), Y = Math.round(st.y - 6.5 * k + bob);
+      ctx.fillStyle = 'rgba(255,170,40,' + (0.16 + 0.1 * Math.sin(t * 6)).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(X + 6.5 * k, Y + 6.5 * k, 6.5 * k + 4, 0, 6.2832); ctx.fill();
+      BALL.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') { ctx.fillStyle = BALL_COL[row[i]]; ctx.fillRect(X + i * k, Y + j * k, k, k); } });
+      ctx.fillStyle = '#16100a';
+      for (const [dx, dy] of BALL_N[Math.floor(st.ph) % 7]) { const sx = X + (6 + dx) * k, sy = Y + (6 + dy) * k; ctx.fillRect(sx - 1, sy, 3, 1); ctx.fillRect(sx, sy - 1, 1, 3); }
+      return;
+    }
+    const k = 2, X = Math.round(st.x - 2.5 * k), Y = Math.round(st.y - 2.5 * k + bob);
+    const col = Math.floor(t * 4) % 2 ? '#fff6c0' : '#ffe680';
+    ctx.fillStyle = 'rgba(255,230,128,0.18)';
+    ctx.fillRect(X - k, Y - k, 5 * k + 2 * k, 5 * k + 2 * k);
+    ctx.fillStyle = col;
+    STAR_PX.forEach((row, j) => { for (let i = 0; i < 5; i++) if (row[i] === '#') ctx.fillRect(X + i * k, Y + j * k, k, k); });
+  }
+  const hitsStar = (W, x, y) => W.stars.findIndex((st) => Math.abs(x - st.x) < (st.sup ? 14 : 10) && Math.abs(y - st.y) < (st.sup ? 14 : 10));
+  const PLANE_K = 2; // Loot Bulma's plane is drawn at 2x so she is easy to spot and tap
   function drawPlane(x, y) {
     const bob = Math.round(Math.sin(t * 4) * 1.2);
-    const X = Math.round(x - 11), Y = Math.round(y - 6) + bob;
+    const X = Math.round(x - 11 * PLANE_K), Y = Math.round(y - 6 * PLANE_K) + bob;
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.fillRect(X + 3, Y + 22, 16, 2);
-    PLANE.forEach((row, j) => { for (let i = 0; i < row.length; i++) { const ch = row[i]; if (ch === '.' || (ch === 'p' && Math.floor(t * 20) % 2)) continue; px(ctx, X + i, Y + j, PCOL[ch]); } });
+    ctx.fillRect(X + 3 * PLANE_K, Y + 22 * PLANE_K, 16 * PLANE_K, 2 * PLANE_K);
+    ctx.save();
+    ctx.translate(X, Y);
+    ctx.scale(PLANE_K, PLANE_K);
+    PLANE.forEach((row, j) => { for (let i = 0; i < row.length; i++) { const ch = row[i]; if (ch === '.' || (ch === 'p' && Math.floor(t * 20) % 2)) continue; px(ctx, i, j, PCOL[ch]); } });
     // a glint so it reads as "tap me"
-    if (Math.floor(t * 3) % 2 === 0) { px(ctx, X + 6, Y + 3, '#ffffff'); px(ctx, X + 7, Y + 3, '#ffffff'); }
+    if (Math.floor(t * 3) % 2 === 0) { px(ctx, 6, 3, '#ffffff'); px(ctx, 7, 3, '#ffffff'); }
+    ctx.restore();
   }
 
   // ------------------------------------------------------------------ effects
@@ -476,6 +512,8 @@ const Render = (() => {
       else if (e.id === 'cherry' || e.id === 'battery' || e.id === 'wish') { flash = { col: T.col, a: 0.25 }; fx.push({ k: 'ring', x: GW / 2, y: GH / 2, life: 0.6, age: 0, col: T.col, r: 50 }); }
       else if (e.id === 'hell') { for (let i = 0; i < 14; i++) fx.push({ k: 'orb', x: Math.random() * GW, y: Math.random() * GH * 0.7 + GH * 0.15, life: 1.2, age: -i * 0.05 }); }
       if (e.id !== 'spirit') shake = reduce ? 0 : 0.15;
+    } else if (e.type === 'vein') {
+      text(e.x, e.y, '+' + e.amt + ' ' + e.name.toUpperCase() + ' VEIN', e.rbw ? '#ff8fd0' : e.gold ? '#ffd34d' : '#7fe8ff', null, 1.2);
     } else if (e.type === 'steal') {
       texts.push({ x: e.x, y: e.y, s: '+' + fmt(e.z) + 'Z', col: '#ffd34d', age: 0, life: 0.7, vx: 0, dmg: 1 });
     } else if (e.type === 'beam') {
@@ -492,6 +530,9 @@ const Render = (() => {
       if (e.blocked && t - armorNote > 1.2) { armorNote = t; text(e.x, e.y - 10, 'ARMOR', '#a8a49c'); }
     } else if (e.type === 'level') {
       text(GW / 2, GH * 0.42, 'LEVEL ' + e.level, '#ffd34d', null, 1.4);
+    } else if (e.type === 'starGot') {
+      for (let i = 0; i < 14; i++) fx.push({ k: 'spark', x: e.x, y: e.y, vx: (Math.random() - 0.5) * 100, vy: (Math.random() - 0.5) * 100, life: 0.5, age: 0, col: e.sup ? ['#f08a1c', '#ffc866', '#1a1a1a'][i % 3] : ['#fff6c0', '#ffe680', '#ffd34d'][i % 3] });
+      text(e.x, e.y - 8, (e.sup ? 'BLACK STAR BALL +' : '+') + (Math.round(e.v * 10) / 10) + (e.tag ? ' ' + e.tag : ''), e.sup ? '#ffa23a' : '#ffe680', null, 1.3, !!e.tag);
     } else if (e.type === 'bulmaGot') {
       for (let i = 0; i < 16; i++) fx.push({ k: 'spark', x: e.x, y: e.y, vx: (Math.random() - 0.5) * 120, vy: (Math.random() - 0.5) * 120, life: 0.5, age: 0, col: ['#ff8fd0', '#ffd34d', '#7ce0ff', '#82f468'][i % 4] });
     } else if (e.type === 'monoEnd' || e.type === 'zenkai') {
@@ -538,7 +579,8 @@ const Render = (() => {
       const m = G.MACH[n.m];
       const F = frames(m);
       const k = Math.floor((t + n.ph) * 7) % F.idle.length;
-      const img = n.flash > 0 ? F.white[k] : F.idle[k];
+      const img = n.flash > 0 ? F.white[k] : n.gold ? F.gold[k] : F.idle[k];
+      if (n.rainbow) ctx.filter = 'hue-rotate(' + Math.round((t * 180 + n.ph * 40) % 360) + 'deg) saturate(1.6)';
       const pop = n.born < 0.2 ? Math.round((1 - n.born / 0.2) * 4) : 0;
       const jx = n.flash > 0 && !reduce ? (Math.random() < 0.5 ? -1 : 1) : 0;
       const x = Math.round(n.x - F.w / 2) + jx, y = Math.round(n.y - F.h) - pop;
@@ -546,6 +588,16 @@ const Render = (() => {
       ctx.fillRect(Math.round(n.x - n.r * 0.8), Math.round(n.y) - 1, Math.round(n.r * 1.6), 2);
       if (n.face < 0) { ctx.save(); ctx.translate(x + F.w, y); ctx.scale(-1, 1); ctx.drawImage(img, 0, 0); ctx.restore(); }
       else ctx.drawImage(img, x, y);
+      ctx.filter = 'none';
+      // vein nodes: a glow on the ground and a pulsing 5x5 crystal above the machine (cyan; gold, then pink for the rarer ones)
+      if (n.vein) {
+        const vc = n.vein.rbw ? '#ff8fd0' : n.vein.gold ? '#ffd34d' : '#7fe8ff', pulse = Math.floor((t + n.ph) * 3) % 2;
+        ctx.globalAlpha = 0.55; ctx.fillStyle = vc; ctx.fillRect(Math.round(n.x - n.r), Math.round(n.y) - 3, Math.round(n.r * 2), 4); ctx.globalAlpha = 1;
+        const gx = Math.round(n.x) - 2, gy = y - 12 - pulse;
+        for (const [dx, dy, col] of [[2, 0, vc], [1, 1, vc], [2, 1, '#ffffff'], [3, 1, vc], [0, 2, vc], [1, 2, '#ffffff'], [2, 2, '#ffffff'], [3, 2, '#ffffff'], [4, 2, vc], [1, 3, vc], [2, 3, '#ffffff'], [3, 3, vc], [2, 4, vc]]) px(ctx, gx + dx, gy + dy, col);
+      }
+      // a glint on golden machines
+      if (n.gold && !reduce && Math.floor((t + n.ph) * 4) % 5 === 0) { px(ctx, x + Math.round(F.w * 0.3), y + 3, '#ffffff'); px(ctx, x + Math.round(F.w * 0.3) + 1, y + 2, '#fff6b0'); }
       const f = n.hp / n.max;
       if (f < 1) {
         const bx = Math.round(n.x - 8), by = y - 3;
@@ -574,7 +626,8 @@ const Render = (() => {
       for (let i = 0; i < Math.min(show, sp.cracks.length); i++) for (const [cx, cy] of sp.cracks[i]) px(ctx, x + 1 + cx, y + 1 + cy, INK);
     }
 
-    if (W.bulma) drawPlane(W.bulma.x, W.bulma.y);
+    for (const st of W.stars) drawStar(st);
+    if (W.bulma) { if (W.bulma.n > 1) { drawPlane(W.bulma.x - 30, W.bulma.y + 12); drawPlane(W.bulma.x - 56, W.bulma.y - 8); } drawPlane(W.bulma.x, W.bulma.y); if (W.bulma.gold) for (let i = 0; i < 5; i++) { const gx = Math.round(W.bulma.x - 24 + ((i * 13 + Math.floor(t * 6)) % 50)), gy = Math.round(W.bulma.y - 16 + ((i * 9 + Math.floor(t * 9)) % 38)); px(ctx, gx, gy, '#ffe680'); px(ctx, gx + 1, gy, '#ffd34d'); } }
 
     // companion projectiles: each fighter throws their own
     for (const s of W.shots) {
@@ -825,7 +878,7 @@ const Render = (() => {
     }
   }
   // is a tap (game px) on Loot Bulma's plane?
-  const hitsBulma = (W, x, y) => !!W.bulma && Math.abs(x - W.bulma.x) < 16 && Math.abs(y - W.bulma.y) < 12;
+  const hitsBulma = (W, x, y) => !!W.bulma && Math.abs(x - W.bulma.x) < 16 * PLANE_K * 0.9 && Math.abs(y - W.bulma.y) < 12 * PLANE_K * 0.9;
 
-  return { load, init, resize, toGame, frame, event, rigSprite, thumb, tileIcon, frames, setHelperOrigins, setReduce, hitsBulma, get size() { return { GW, GH, scale: PX / DPR }; } };
+  return { load, init, resize, toGame, frame, event, rigSprite, thumb, tileIcon, frames, setHelperOrigins, setReduce, hitsBulma, hitsStar, get size() { return { GW, GH, scale: PX / DPR }; } };
 })();
