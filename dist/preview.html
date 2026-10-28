@@ -3545,8 +3545,12 @@ if (typeof module !== 'undefined') module.exports = IdleCore;
 
 // Patch notes shown in Menu > Patch Notes (newest first). Keep PATCH_NOTES.md in step with this.
 const PATCH_NOTES = [
+  { v: '0.9 - A mode of DBZ: Blazing Sun', notes: [
+    'New: DBZ Idle is now also a mode inside the DBZ: Blazing Sun app (the fight sim: its Windows app and its website). There, Menu > Options > GAME MODE switches to the fight sim and the fight sim\'s Options switch back. Each game keeps its own save and never changes the other, and the app opens in whichever one you played last.',
+    'Saves don\'t move between this website and the app by themselves: copy your code in Options > MOVE YOUR SAVE here and paste it into the app\'s DBZ Idle.'
+  ] },
   { v: '0.8 - Cards, Stars, Pets and Challenges', notes: [
-    'Changed: parts from every machine are now doubled (the wiki's base Ore Income x2), and every Z-Fighter you hire adds another 10% parts. Parts income was far too low to ever afford the Construct research.',
+    'Changed: parts from every machine are now doubled (the wiki\'s base Ore Income x2), and every Z-Fighter you hire adds another 10% parts. Parts income was far too low to ever afford the Construct research.',
     'Changed: Construct bar prices (Vein research, Vein spawning, Statues) are now 10% of what they were. With a maxed Zenkai the first three Vein zones are researched in about a day and a half and Planet Namek follows once you have the Veins and 2,000 Rainbow Capsules saved.',
     'New: Extreme Challenges (Menu > Challenges > EXTREME), unlocked when every Regular challenge is done. 26 tasks pay 10 Extreme Coins each; spend them on 9 upgrades (damage per Katchin, golden floor multiplier, banked Freebies, Black Star Dragon Ball spawn rate, Pet level cap, Galactic floor chance and more). Divine challenges need systems we do not have yet.',
     'New: Gifts (Menu > Gifts). Katchin Monolith clears give 2 Gifts, 1% of Freebie Packs hold one, and some Value Packs add more. Opening one gives a random reward: SUPER chests, Rainbow Capsules, Skill Bits, buffs, Senzu Beans and more, with rare rolls for extra Gifts or a big capsule prize.',
@@ -4483,6 +4487,9 @@ const Render = (() => {
   let lastT = 0, lastWall = Date.now(), saveT = 0, sheet = null, sheetStack = [], lockUntil = 0, sheetSig = '', modalOpen = false;
   const ui = { labRegion: 0, amt: 'max', resetArm: 0, ccTab: 'crew', skill: null, lastLoot: null, monoTab: 'next', zpAmt: '1', cardKind: 'machine', discTab: 'disc', sgTab: 'stars', chalTier: 'r' };
   const app = $('#app'), cv = $('#field');
+  // The DBZ: Blazing Sun app carries this game as its second mode (idle.html next to the fight sim's index.html, one save
+  // each). tools/build.py turns this on only in that copy (dist/idle-app.html): the standalone page has no switch.
+  const IN_APP = /*APP*/false;
 
   // ------------------------------------------------------------------ tips: the loading splash and the Zenkai window
   const TIPS = [
@@ -4524,6 +4531,7 @@ const Render = (() => {
   // ------------------------------------------------------------------ boot
   function boot(data) {
     const now = Date.now();
+    if (IN_APP) try { localStorage.setItem('dbzapp.mode', 'idle'); } catch (e) { /* no storage: the app opens the fight sim */ }
     let fresh = false, away = null;
     S = null;
     try { if (data && data.save) S = G.migrate(JSON.parse(data.save), now); } catch (e) { S = null; }
@@ -5035,6 +5043,12 @@ const Render = (() => {
       case 'offBuffs': S.opt.offBuffs = S.opt.offBuffs === false; break;
       case 'copySave': copySave(); return;
       case 'loadSave': loadSave(); return;
+      case 'modeFight':
+        if (W.mode === 'mono') { toast('FINISH THE MONOLITH FIGHT FIRST'); return; }
+        save();
+        try { localStorage.setItem('dbzapp.mode', 'fight'); } catch (err) { /* no storage */ }
+        location.href = 'index.html';
+        return;
       case 'reset':
         if (now - ui.resetArm > 4000) { ui.resetArm = now; toast('TAP ERASE AGAIN TO CONFIRM'); refreshSheet(true); return; }
         try { localStorage.removeItem(G.SAVE_KEY); } catch (err) { /* nothing saved */ }
@@ -5593,9 +5607,10 @@ const Render = (() => {
     },
     options() {
       const armed = Date.now() - ui.resetArm < 4000;
+      const mode = IN_APP ? '<div class="sec">GAME MODE</div><div class="row"><div><div class="nm"><span>DBZ: Blazing Sun</span></div><div class="sub">The app\'s fight sim: build fighters, play Story, train and fight Online. It keeps its own save and nothing here changes it. ' + fightSaveLine() + '</div></div><div class="acts"><button class="btn gold" data-act="modeFight">SWITCH</button></div></div><div class="sec">THIS GAME</div>' : '';
       const onoff = (on, act) => '<button class="btn ' + (on ? 'go' : 'alt') + '" data-act="' + act + '">' + (on ? 'ON' : 'OFF') + '</button>';
       const fbtn = (id) => '<button class="btn ' + ((S.fighter || 'goku') === id ? 'gold' : 'alt') + '" data-act="fighter" data-id="' + id + '">' + G.FIGHTERS[id].name.toUpperCase() + '</button>';
-      return '<div class="row"><div><div class="nm"><span>Fighter</span></div><div class="sub">Who stands at the top and powers up. Looks only: forms work the same for both. With Vegeta, Goku takes his Z-Fighter slot (same upgrades).</div></div><div class="acts">' + fbtn('goku') + fbtn('vegeta') + '</div></div>'
+      return mode + '<div class="row"><div><div class="nm"><span>Fighter</span></div><div class="sub">Who stands at the top and powers up. Looks only: forms work the same for both. With Vegeta, Goku takes his Z-Fighter slot (same upgrades).</div></div><div class="acts">' + fbtn('goku') + fbtn('vegeta') + '</div></div>'
         + '<div class="row"><div><div class="nm"><span>Reduce effects</span></div><div class="sub">Less shaking, fewer particles</div></div><div class="acts">' + onoff(S.opt.reduce, 'reduce') + '</div></div>'
         + '<div class="row"><div><div class="nm"><span>Use buffs while away</span></div><div class="sub">Running buffs (and the Time Chamber\'s x2 speed) help your Z-Fighters while you are gone. Off: they wait for you.</div></div><div class="acts">' + onoff(S.opt.offBuffs !== false, 'offBuffs') + '</div></div>'
         + '<div class="sec">MOVE YOUR SAVE</div><div class="card"><p class="mute">Copy this code to keep a backup or move to another device, then paste it below on the other device.</p><textarea id="saveOut" readonly>' + esc(exportCode()) + '</textarea><div class="tabs" style="margin-top:6px"><button class="btn alt" data-act="copySave">COPY CODE</button></div></div>'
@@ -5650,6 +5665,25 @@ const Render = (() => {
   const optRender = SHEETS.options;
   SHEETS.options = () => (sheetSig && sheet === 'options' && document.activeElement && document.activeElement.tagName === 'TEXTAREA' ? sheetSig : optRender());
 
+  // the fight sim's save (the app's other mode), read only, to say what is there. The open sheet redraws every frame, so
+  // the answer is kept for 5 s (opening Options again later reads it fresh).
+  let fightLine = null, fightLineAt = 0;
+  const agoText = (ms) => { const m = Math.floor(ms / 60000), h = Math.floor(m / 60); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : h < 48 ? h + 'h ago' : Math.floor(h / 24) + ' days ago'; };
+  function fightSaveLine() {
+    if (fightLine != null && Date.now() - fightLineAt < 5000) return fightLine;
+    let d = null, fights = 0;
+    try {
+      const raw = localStorage.getItem('dbzsim.v1');
+      if (raw) d = JSON.parse(raw);
+      const h = localStorage.getItem('dbzsim.v1.history');
+      if (h) fights = ((JSON.parse(h) || {}).items || []).length;
+    } catch (e) { d = null; }
+    fightLineAt = Date.now();
+    if (!d || typeof d !== 'object') return (fightLine = 'No fight sim save on this device yet: it starts fresh.');
+    const made = (Array.isArray(d.roster) ? d.roster : []).filter((f) => f && !f.preset && !f.premade).length; // not Oto: she comes with the game
+    const ago = +d.updatedAt ? ' Last saved ' + agoText(Date.now() - d.updatedAt) + '.' : '';
+    return (fightLine = '<b>Fight sim save found:</b> ' + made + ' fighter' + (made === 1 ? '' : 's') + ' you made, ' + fights + ' fight' + (fights === 1 ? '' : 's') + ' in History.' + ago + ' It loads when you switch.');
+  }
   function exportCode() { try { return btoa(unescape(encodeURIComponent(JSON.stringify(S)))); } catch (e) { return ''; } }
   function copySave() {
     const ta = $('#saveOut');

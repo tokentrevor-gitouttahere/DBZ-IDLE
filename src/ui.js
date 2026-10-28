@@ -9,6 +9,9 @@
   let lastT = 0, lastWall = Date.now(), saveT = 0, sheet = null, sheetStack = [], lockUntil = 0, sheetSig = '', modalOpen = false;
   const ui = { labRegion: 0, amt: 'max', resetArm: 0, ccTab: 'crew', skill: null, lastLoot: null, monoTab: 'next', zpAmt: '1', cardKind: 'machine', discTab: 'disc', sgTab: 'stars', chalTier: 'r' };
   const app = $('#app'), cv = $('#field');
+  // The DBZ: Blazing Sun app carries this game as its second mode (idle.html next to the fight sim's index.html, one save
+  // each). tools/build.py turns this on only in that copy (dist/idle-app.html): the standalone page has no switch.
+  const IN_APP = /*APP*/false;
 
   // ------------------------------------------------------------------ tips: the loading splash and the Zenkai window
   const TIPS = [
@@ -50,6 +53,7 @@
   // ------------------------------------------------------------------ boot
   function boot(data) {
     const now = Date.now();
+    if (IN_APP) try { localStorage.setItem('dbzapp.mode', 'idle'); } catch (e) { /* no storage: the app opens the fight sim */ }
     let fresh = false, away = null;
     S = null;
     try { if (data && data.save) S = G.migrate(JSON.parse(data.save), now); } catch (e) { S = null; }
@@ -561,6 +565,12 @@
       case 'offBuffs': S.opt.offBuffs = S.opt.offBuffs === false; break;
       case 'copySave': copySave(); return;
       case 'loadSave': loadSave(); return;
+      case 'modeFight':
+        if (W.mode === 'mono') { toast('FINISH THE MONOLITH FIGHT FIRST'); return; }
+        save();
+        try { localStorage.setItem('dbzapp.mode', 'fight'); } catch (err) { /* no storage */ }
+        location.href = 'index.html';
+        return;
       case 'reset':
         if (now - ui.resetArm > 4000) { ui.resetArm = now; toast('TAP ERASE AGAIN TO CONFIRM'); refreshSheet(true); return; }
         try { localStorage.removeItem(G.SAVE_KEY); } catch (err) { /* nothing saved */ }
@@ -1119,9 +1129,10 @@
     },
     options() {
       const armed = Date.now() - ui.resetArm < 4000;
+      const mode = IN_APP ? '<div class="sec">GAME MODE</div><div class="row"><div><div class="nm"><span>DBZ: Blazing Sun</span></div><div class="sub">The app\'s fight sim: build fighters, play Story, train and fight Online. It keeps its own save and nothing here changes it. ' + fightSaveLine() + '</div></div><div class="acts"><button class="btn gold" data-act="modeFight">SWITCH</button></div></div><div class="sec">THIS GAME</div>' : '';
       const onoff = (on, act) => '<button class="btn ' + (on ? 'go' : 'alt') + '" data-act="' + act + '">' + (on ? 'ON' : 'OFF') + '</button>';
       const fbtn = (id) => '<button class="btn ' + ((S.fighter || 'goku') === id ? 'gold' : 'alt') + '" data-act="fighter" data-id="' + id + '">' + G.FIGHTERS[id].name.toUpperCase() + '</button>';
-      return '<div class="row"><div><div class="nm"><span>Fighter</span></div><div class="sub">Who stands at the top and powers up. Looks only: forms work the same for both. With Vegeta, Goku takes his Z-Fighter slot (same upgrades).</div></div><div class="acts">' + fbtn('goku') + fbtn('vegeta') + '</div></div>'
+      return mode + '<div class="row"><div><div class="nm"><span>Fighter</span></div><div class="sub">Who stands at the top and powers up. Looks only: forms work the same for both. With Vegeta, Goku takes his Z-Fighter slot (same upgrades).</div></div><div class="acts">' + fbtn('goku') + fbtn('vegeta') + '</div></div>'
         + '<div class="row"><div><div class="nm"><span>Reduce effects</span></div><div class="sub">Less shaking, fewer particles</div></div><div class="acts">' + onoff(S.opt.reduce, 'reduce') + '</div></div>'
         + '<div class="row"><div><div class="nm"><span>Use buffs while away</span></div><div class="sub">Running buffs (and the Time Chamber\'s x2 speed) help your Z-Fighters while you are gone. Off: they wait for you.</div></div><div class="acts">' + onoff(S.opt.offBuffs !== false, 'offBuffs') + '</div></div>'
         + '<div class="sec">MOVE YOUR SAVE</div><div class="card"><p class="mute">Copy this code to keep a backup or move to another device, then paste it below on the other device.</p><textarea id="saveOut" readonly>' + esc(exportCode()) + '</textarea><div class="tabs" style="margin-top:6px"><button class="btn alt" data-act="copySave">COPY CODE</button></div></div>'
@@ -1176,6 +1187,25 @@
   const optRender = SHEETS.options;
   SHEETS.options = () => (sheetSig && sheet === 'options' && document.activeElement && document.activeElement.tagName === 'TEXTAREA' ? sheetSig : optRender());
 
+  // the fight sim's save (the app's other mode), read only, to say what is there. The open sheet redraws every frame, so
+  // the answer is kept for 5 s (opening Options again later reads it fresh).
+  let fightLine = null, fightLineAt = 0;
+  const agoText = (ms) => { const m = Math.floor(ms / 60000), h = Math.floor(m / 60); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : h < 48 ? h + 'h ago' : Math.floor(h / 24) + ' days ago'; };
+  function fightSaveLine() {
+    if (fightLine != null && Date.now() - fightLineAt < 5000) return fightLine;
+    let d = null, fights = 0;
+    try {
+      const raw = localStorage.getItem('dbzsim.v1');
+      if (raw) d = JSON.parse(raw);
+      const h = localStorage.getItem('dbzsim.v1.history');
+      if (h) fights = ((JSON.parse(h) || {}).items || []).length;
+    } catch (e) { d = null; }
+    fightLineAt = Date.now();
+    if (!d || typeof d !== 'object') return (fightLine = 'No fight sim save on this device yet: it starts fresh.');
+    const made = (Array.isArray(d.roster) ? d.roster : []).filter((f) => f && !f.preset && !f.premade).length; // not Oto: she comes with the game
+    const ago = +d.updatedAt ? ' Last saved ' + agoText(Date.now() - d.updatedAt) + '.' : '';
+    return (fightLine = '<b>Fight sim save found:</b> ' + made + ' fighter' + (made === 1 ? '' : 's') + ' you made, ' + fights + ' fight' + (fights === 1 ? '' : 's') + ' in History.' + ago + ' It loads when you switch.');
+  }
   function exportCode() { try { return btoa(unescape(encodeURIComponent(JSON.stringify(S)))); } catch (e) { return ''; } }
   function copySave() {
     const ta = $('#saveOut');

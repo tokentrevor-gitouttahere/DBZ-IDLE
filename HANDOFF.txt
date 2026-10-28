@@ -1,6 +1,37 @@
-DBZ IDLE HANDOFF (updated 2026-10-27, v0.6 live, v0.7 rebalance built locally)
+DBZ IDLE HANDOFF (updated 2026-10-28: v0.9 = also a mode of the DBZ: Blazing Sun app; see section 0b first)
 Read this first. It is the source of truth for the current game; IDLE_DESIGN.md is the v0.2 design and is out of
 date for everything from v0.4 on (fighters, forms, Ki, Z points, Contracts, Cards).
+
+==================================================================================================================
+0b. DBZ IDLE INSIDE THE BLAZING SUN APP (v0.9, 2026-10-28)
+==================================================================================================================
+Owner (2026-10-27): the fight sim and DBZ Idle are "two modes of a single app", switched from each game's options,
+separate saves, the Idle "untied to any systems in the fight sim". STANDING RULE: "make sure I can still patch each
+gameplay type separately. if anything ever applies to the entire app ill explicitly say so". So this repo stays the
+Idle's own project (own versions, patch notes, GitHub Pages); the app just carries the built page as idle.html.
+  - tools/build.py also writes dist/idle-app.html = the app copy: ui.js IN_APP on (Menu > Options > GAME MODE: switch
+    to the fight sim + a read-only line about its save), a full document, <meta name="dbz-idle-version"> from the
+    newest patch-notes heading (so name it "0.10 - ..." before shipping; "Next update" would block the app release),
+    and a strict CSP like the fight sim's (script hashes, no network). The standalone page/Pages build has no switch.
+  - build.py now fails if any built page's script doesn't parse. v0.8 (cc1af15) went live with an unescaped quote in
+    patchnotes.js ("the wiki's base Ore Income"): the whole script failed, the live site never got past LOADING.
+    Fixed in v0.9. Write patch notes with \' (or use the Write/Edit tools: shell heredocs mangle quotes here).
+  - Shared with the fight sim, nothing else: localStorage 'dbzapp.mode' ('idle' written on boot in the app copy) and
+    the fight sim's dbzsim.v1 / dbzsim.v1.history, which the GAME MODE line only READS. Erase only removes dbzidle.v1.
+  - Ship an Idle-only update into the app: from the fight sim project, powershell -File publish\update_idle.ps1
+    -Version 0.10 [-DryRun] (checks, Windows app with the live fight sim + this Idle, pushes idle.html only,
+    Release idle-v0.10). Push this repo too (git) for GitHub Pages. Details: ..\..\DBZ Fight Sim\HANDOFF_10.txt.
+  - NEW tools/hour_page.js <page or URL> [hours] [outdir]: plays the REAL page for N hours on a virtual clock (the
+    page's own loop one 0.1 s frame at a time, pointer events for the disc, every modal answered, Monolith via its
+    button, sim.js's decide() for the rest), then reload + an hour away. Needs playwright: NODE_PATH="..\..\DBZ Fight
+    Sim\src\node_modules". 1 game hour takes ~15 s. Owner's test gate before this deploy: "simulate an hour".
+    v0.9 result (served by the fight sim's server, real CSP): floor 19-20, Monoliths at minutes 21 and 41, 3
+    Z-Fighters, save reloads, "Gone 1h 00m" away report, no errors. node tools/sim.js 1 0.7 3: M1 0h20, M2 0h40,
+    floor 21-22 at 1h, no errors.
+  - Saves don't cross origins: the Pages site, the app (app://dbz) and the Render site each have their own; MOVE YOUR
+    SAVE moves one (patch notes 0.9 tell players).
+  - "DBZ IDLE\DBZ Blazing Sun" (a copy of the fight sim's src\m19 patch folder) is stale now; the real one is in the
+    fight sim project. Safe to delete if the owner agrees.
 
 ==================================================================================================================
 0. WHERE THINGS ARE
@@ -302,7 +333,7 @@ v0.3 and earlier (see IDLE_DESIGN.md): machines + floors + regions, Techniques, 
   - Damage numbers can pile into a clump when Vegeta's barrage hits (64 tiny numbers). Possible fix: merge
     numbers per machine per frame, or hide Z-Fighter numbers below a size.
   - Krillin's armor-pierce trait is weak on Planet 1 now (no armor there).
-  - Not inside the fight sim app (would need a patch to add a tab).
+  - (DONE in v0.9: a mode of the fight sim app, see 0b.)
   - IDLE_DESIGN.md still describes v0.2; it needs a refresh if the owner wants a design doc.
 
 ==================================================================================================================

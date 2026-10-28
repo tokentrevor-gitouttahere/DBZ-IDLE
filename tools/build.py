@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Builds dist/dbz-idle.html (one self-contained page: fonts, CSS and JS inlined) from src/.
+"""Builds dist/dbz-idle.html (one self-contained page: fonts, CSS and JS inlined) from src/, the gallery, docs/ for
+GitHub Pages, and dist/idle-app.html: the copy the DBZ: Blazing Sun app carries as its second mode (idle.html).
 Usage: python tools/build.py"""
-import base64, os
+import base64, hashlib, os, re
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 rd = lambda *p: open(os.path.join(ROOT, *p), encoding='utf-8').read()
@@ -42,3 +43,37 @@ open(os.path.join(ROOT, 'docs', 'index.html'), 'w', encoding='utf-8', newline='\
 open(os.path.join(ROOT, 'docs', 'gallery.html'), 'w', encoding='utf-8', newline='\n').write(doc(gallery))
 open(os.path.join(ROOT, 'docs', '.nojekyll'), 'w').close()
 print('built docs/ for GitHub Pages')
+
+# The DBZ: Blazing Sun app copy (served as idle.html next to the fight sim's index.html; the fight sim's
+# publish/update_idle.ps1 ships it): the GAME MODE switch on (ui.js IN_APP), a full document, the version from the
+# newest patch notes heading, and a strict Content Security Policy like the fight sim's: only these scripts (by their
+# SHA-256), nothing loaded from anywhere, no network. Both games share the app's storage, so this matters here.
+APP_FLAG = 'const IN_APP = /*APP*/false;'
+if js.count(APP_FLAG) != 1:
+    raise SystemExit('build: the IN_APP switch is missing from ui.js')
+notes = rd('src', 'patchnotes.js')
+ver = re.search(r"v: '([^']*)'", notes).group(1).split(' - ')[0].strip()
+app_body = (rd('src', 'shell.html').replace('{{FONT400}}', b64('assets', 'silkscreen-400.woff2'))
+            .replace('{{FONT700}}', b64('assets', 'silkscreen-700.woff2')).replace('{{CSS}}', rd('src', 'idle.css'))
+            .replace('{{JS}}', js.replace(APP_FLAG, 'const IN_APP = true;')))
+hashes = ' '.join("'sha256-%s'" % base64.b64encode(hashlib.sha256(m.group(1).encode('utf-8')).digest()).decode('ascii')
+                  for m in re.finditer(r'<script>([\s\S]*?)</script>', app_body))
+csp = ("default-src 'none'; script-src " + hashes + "; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; "
+       "connect-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'")
+app_page = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="' + csp + '">'
+            '<meta name="dbz-idle-version" content="' + ver + '"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
+            '<style>body{margin:0}</style></head><body>' + app_body + '</body></html>')
+if any(ord(c) > 127 for c in app_page):
+    raise SystemExit('build: idle-app.html must be ASCII (the fight sim checks its pages for it)')
+open(os.path.join(ROOT, 'dist', 'idle-app.html'), 'w', encoding='utf-8', newline='\n').write(app_page)
+print('built dist/idle-app.html (app mode, version %s)' % ver, len(app_page), 'bytes')
+
+# every built page's scripts must parse (v0.8 first went out with an unescaped quote in the patch notes: nothing ran)
+import shutil, subprocess
+node = shutil.which('node') or os.path.join(os.environ.get('ProgramFiles', r'C:\Program Files'), 'nodejs', 'node.exe')
+pages = [os.path.join(ROOT, 'dist', f) for f in ('dbz-idle.html', 'idle-app.html', 'gallery.html')] + [os.path.join(ROOT, 'docs', 'index.html')]
+subprocess.run([node, '-e', r"""
+const fs=require('fs');
+for (const p of process.argv.slice(1)) { const h=fs.readFileSync(p,'utf8'); const re=/<script>([\s\S]*?)<\/script>/g; let m;
+  while ((m=re.exec(h))) { try { new Function(m[1]); } catch (e) { console.error('build: a script in '+p+' does not parse: '+e.message); process.exit(1); } } }
+console.log('scripts parse:', process.argv.length-1, 'pages');"""] + pages, check=True)

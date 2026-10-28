@@ -1,7 +1,11 @@
 // Patch notes shown in Menu > Patch Notes (newest first). Keep PATCH_NOTES.md in step with this.
 const PATCH_NOTES = [
+  { v: '0.9 - A mode of DBZ: Blazing Sun', notes: [
+    'New: DBZ Idle is now also a mode inside the DBZ: Blazing Sun app (the fight sim: its Windows app and its website). There, Menu > Options > GAME MODE switches to the fight sim and the fight sim\'s Options switch back. Each game keeps its own save and never changes the other, and the app opens in whichever one you played last.',
+    'Saves don\'t move between this website and the app by themselves: copy your code in Options > MOVE YOUR SAVE here and paste it into the app\'s DBZ Idle.'
+  ] },
   { v: '0.8 - Cards, Stars, Pets and Challenges', notes: [
-    'Changed: parts from every machine are now doubled (the wiki's base Ore Income x2), and every Z-Fighter you hire adds another 10% parts. Parts income was far too low to ever afford the Construct research.',
+    'Changed: parts from every machine are now doubled (the wiki\'s base Ore Income x2), and every Z-Fighter you hire adds another 10% parts. Parts income was far too low to ever afford the Construct research.',
     'Changed: Construct bar prices (Vein research, Vein spawning, Statues) are now 10% of what they were. With a maxed Zenkai the first three Vein zones are researched in about a day and a half and Planet Namek follows once you have the Veins and 2,000 Rainbow Capsules saved.',
     'New: Extreme Challenges (Menu > Challenges > EXTREME), unlocked when every Regular challenge is done. 26 tasks pay 10 Extreme Coins each; spend them on 9 upgrades (damage per Katchin, golden floor multiplier, banked Freebies, Black Star Dragon Ball spawn rate, Pet level cap, Galactic floor chance and more). Divine challenges need systems we do not have yet.',
     'New: Gifts (Menu > Gifts). Katchin Monolith clears give 2 Gifts, 1% of Freebie Packs hold one, and some Value Packs add more. Opening one gives a random reward: SUPER chests, Rainbow Capsules, Skill Bits, buffs, Senzu Beans and more, with rare rolls for extra Gifts or a big capsule prize.',

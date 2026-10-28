@@ -2,6 +2,13 @@
 
 Newest first. The same notes are in the game (Menu > Patch Notes, from `src/patchnotes.js`); keep both in step.
 
+## 0.9 - A mode of DBZ: Blazing Sun
+- **In the Blazing Sun app:** DBZ Idle is now also a mode inside the DBZ: Blazing Sun app (the fight sim's Windows app
+  and website). There, Menu > Options > GAME MODE switches to the fight sim, and the fight sim's Options switch back.
+  Each game keeps its own save and never changes the other; the app opens in whichever one you played last.
+- Saves don't move between this website and the app by themselves: copy your code in Options > MOVE YOUR SAVE and paste
+  it into the app's DBZ Idle.
+
 ## 0.8 - Cards, Stars, Pets and Challenges
 - **Parts x2:** every machine now gives double parts (the wiki's base Ore Income x2) and each hired Z-Fighter adds
   another 10%. **Construct bar prices are 10% of before**, so Namek is reachable in about 4-5 days of play.
